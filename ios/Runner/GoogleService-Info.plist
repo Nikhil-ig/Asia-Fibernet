@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyAemRv3td1EdDvMf1PqFunSNH8p3ZzaqMA</string>
+	<key>GCM_SENDER_ID</key>
+	<string>679917518364</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.htcl.asiaFibernet</string>
+	<key>PROJECT_ID</key>
+	<string>aisa-fibernet</string>
+	<key>STORAGE_BUCKET</key>
+	<string>aisa-fibernet.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:679917518364:ios:89a51fce1022d9e50169d9</string>
+</dict>
+</plist>

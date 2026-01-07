@@ -1,0 +1,63 @@
+{
+    "status": "success",
+    "message": "KYC pending. Complete all required documents or resolve rejected documents.",
+    "token": "",
+    "data": {
+        "registration": {
+            "id": 64,
+            "full_name": "testing2",
+            "mobile_number": "1346790134",
+            "email": "testing2@gmail.com",
+            "street_address": null,
+            "pincode": null,
+            "city": "phulera",
+            "state": "bihar",
+            "connection_type": "WiFi",
+            "desired_plan": null,
+            "referral_code": "",
+            "aadhar_verified": 0,
+            "pancard_verified": 0,
+            "address_verified": 0,
+            "created_at": "2025-09-17 18:18:38",
+            "updated_at": "2025-09-17 18:18:38",
+            "referral_by": null,
+            "status": null,
+            "service_feasibility": 0
+        },
+        "technician": 23,
+        "tracking_status": {
+            "basic_details": true,
+            "feasibilty": true,
+            "techinician_asgin": true,
+            "kyc_verification": true,
+            "modem_installation": {
+                "status": true,
+                "modem": {
+                    "modem_id": 12,
+                    "modem_number": 1132,
+                    "modem_features": [
+                        "features"
+                    ],
+                    "message": "modem is generated and your plain is this ..."
+                }
+            },
+            "feedback": "",
+            "issue": "rejected file related issue"
+        },
+        "document": [
+            {
+                "id": 141,
+                "type": "PAN",
+                "verification_status": "pending",
+                "document_front_url": "uploads/documents/pan_front_1758197497_2911.jpg",
+                "document_back_url": null,
+                "profile_image_url": "uploads/documents/profile_1758197497_1090.jpg",
+                "registration_table_id": 60,
+                "issue": ""
+            }
+        ],
+        "connection_status": "Pending"
+    },
+    "action": "Dear testing2, please complete your KYC to proceed.",
+    "service_status": "feasible"
+}

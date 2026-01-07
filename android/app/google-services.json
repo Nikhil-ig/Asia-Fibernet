@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "679917518364",
+    "project_id": "aisa-fibernet",
+    "storage_bucket": "aisa-fibernet.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:679917518364:android:1c65c8ab00f0ef2c0169d9",
+        "android_client_info": {
+          "package_name": "com.HTCL.asia_fibernet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUoxo2sDkRMZe5rsp0WtTySdRC59WnZj8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:679917518364:android:5656b45d27ac467c0169d9",
+        "android_client_info": {
+          "package_name": "com.htcl.asiaFibernet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUoxo2sDkRMZe5rsp0WtTySdRC59WnZj8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:679917518364:android:091ee1f88b839c2a0169d9",
+        "android_client_info": {
+          "package_name": "com.htcl.asia_fibernet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCUoxo2sDkRMZe5rsp0WtTySdRC59WnZj8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
