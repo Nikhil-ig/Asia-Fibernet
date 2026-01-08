@@ -126,13 +126,13 @@ class AppSharedPref {
   /// Retrieves the stored authentication token.
   ///
   /// Returns `null` if no token is found or if it has expired.
-  Future<String?> getToken() {
+  String getToken() {
     _validatePrefs();
     final String? token = _prefs!.getString(_tokenKey);
     if (token == null) {
       developer.log("No token found.", name: "AppSharedPref.getToken");
     }
-    return Future.value(token);
+    return token ?? '';
   }
 
   /// Removes the authentication token from storage.
@@ -144,17 +144,7 @@ class AppSharedPref {
     return _prefs!.remove(_tokenKey);
   }
 
-
-
-
-
-
-
-
-
-
-
-Future<bool> setOTP(String token) {
+  Future<bool> setOTP(String token) {
     _validatePrefs();
     if (token.isEmpty) {
       developer.log(
@@ -187,18 +177,6 @@ Future<bool> setOTP(String token) {
     developer.log("Token removed.", name: "AppSharedPref.removeToken");
     return _prefs!.remove(_otp);
   }
-
-
-
-
-
-
-
-
-
-
-
-
 
   /// Saves the authentication token.
   ///

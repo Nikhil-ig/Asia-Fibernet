@@ -124,26 +124,23 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
           );
         } else {
           // Optional: Show disabled button or message
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 120),
-            child: Tooltip(
-              message: "You can only have up to 5 open complaints",
-              child: FloatingActionButton.extended(
-                backgroundColor: Colors.grey[400],
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                icon: const Icon(Icons.add, color: Colors.white70, size: 22),
-                label: Text(
-                  "Raise Complaint",
-                  style: AppText.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white70,
-                  ),
-                ),
-                onPressed: null, // Disabled
+          return Tooltip(
+            message: "You can only have up to 5 open complaints",
+            child: FloatingActionButton.extended(
+              backgroundColor: Colors.grey[400],
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
               ),
+              icon: const Icon(Icons.add, color: Colors.white70, size: 22),
+              label: Text(
+                "Raise Complaint",
+                style: AppText.bodyMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white70,
+                ),
+              ),
+              onPressed: null, // Disabled
             ),
           );
         }

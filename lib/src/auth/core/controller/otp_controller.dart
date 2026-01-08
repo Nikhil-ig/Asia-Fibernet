@@ -33,6 +33,10 @@ class OTPController extends GetxController {
   RxInt currentIndex = 0.obs;
   RxInt secondsRemaining = 60.obs;
   RxBool resendEnabled = false.obs;
+
+  // ✅ OTP Mode: "whatsapp" or "sms"
+  RxString otpMode = "whatsapp".obs;
+
   late Timer timer;
   final BaseApiService _baseApiService = BaseApiService(BaseApiService.api);
 
@@ -73,12 +77,35 @@ class OTPController extends GetxController {
       resendEnabled.value = false;
       startTimer();
       // Add API call to resend OTP if needed
+      ApiServices().generateOTP(phone, isWhatsApp: true);
       _baseApiService.showSnackbar(
         "OTP",
         "OTP resent to $phone",
       ); // Example feedback
     }
   }
+
+  // ) {
+  //   if (resendEnabled.value) {
+  //     // Reset timer state
+  //     secondsRemaining.value = 60;
+  //     resendEnabled.value = false;
+  //     startTimer();
+
+  //     // ✅ Call API with OTP mode
+  //     ApiServices().generateOTP(
+  //       phone,
+  //       resend: true,
+  //       isWhatsApp: otpMode.value == "whatsapp",
+  //     );
+
+  //     final modeText = otpMode.value == "whatsapp" ? "WhatsApp" : "SMS";
+  //     _baseApiService.showSnackbar(
+  //       "OTP Resent",
+  //       "OTP sent via $modeText to $phone",
+  //     );
+  //   }
+  // }
 
   // void verifyAndLogin() async {
   //   // Join the text from all controllers to get the full OTP string
@@ -165,26 +192,34 @@ class OTPController extends GetxController {
     if (!isGuest) {
       // ✅ Registered user → verify OTP and go to home
       try {
-        // final bool isOtpValid = await ApiServices().verifyOtp(
-        //   phone,
-        //   enteredOTP,
-        // );
-        bool isOtpValid = (enteredOTP == "123456"); // Example only
+        // Call the actual verifyOTP API
+        final verifyResponse = await ApiServices().verifyOTP(
+          otp: enteredOTP,
+          mobile: phone,
+        );
 
-        if (isOtpValid) {
-          // Save session
-          await AppSharedPref.instance.setToken(token);
-          await AppSharedPref.instance.setUserID(userID);
-          await AppSharedPref.instance.setMobileNumber(phone);
-          await AppSharedPref.instance.setRole(UserRole.customer.name);
-          await AppSharedPref.instance.setVerificationStatus(true);
+        if (verifyResponse != null && verifyResponse.isValid) {
+          // ✅ OTP verified successfully
+          // Token and user data are already saved by the API method
+
           if (!Get.isRegistered<ScaffoldController>()) {
             Get.put(ScaffoldController());
           }
 
-          Get.offAllNamed(AppRoutes.home);
+          _baseApiService.showSnackbar("Success", verifyResponse.message);
+
+          // 🔑 Check user role and navigate accordingly
+          final userRole = AppSharedPref.instance.getRole();
+          if (userRole == "technician") {
+            Get.offAllNamed(AppRoutes.technicianDashboard);
+          } else {
+            Get.offAllNamed(AppRoutes.home);
+          }
         } else {
-          _baseApiService.showSnackbar("Error", "Invalid OTP");
+          _baseApiService.showSnackbar(
+            "Error",
+            verifyResponse?.message ?? "Invalid OTP",
+          );
           _clearOtpFields();
         }
       } catch (e) {
@@ -203,11 +238,16 @@ class OTPController extends GetxController {
     // 👤 Guest/Unregistered user flow
     try {
       // Verify OTP first (even for guests)
-      // final bool isOtpValid = await ApiServices().verifyOtp(phone, enteredOTP);
-      bool isOtpValid = (enteredOTP == "123456"); // Example only
-      
-      if (!isOtpValid) {
-        _baseApiService.showSnackbar("Error", "Invalid OTP");
+      final verifyResponse = await ApiServices().verifyOTP(
+        otp: enteredOTP,
+        mobile: phone,
+      );
+
+      if (verifyResponse == null || !verifyResponse.isValid) {
+        _baseApiService.showSnackbar(
+          "Error",
+          verifyResponse?.message ?? "Invalid OTP",
+        );
         _clearOtpFields();
         return;
       }

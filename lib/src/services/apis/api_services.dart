@@ -9,6 +9,7 @@ import 'dart:developer' as developer;
 // Models
 import '../../auth/core/model/customer_details_model.dart';
 import '../../auth/core/model/verify_mobile_model.dart';
+import '../../auth/core/model/otp_response_model.dart';
 import '../../auth/ui/scaffold_screen.dart';
 import '../../customer/ui/screen/pages/home_page.dart';
 import '../../customer/core/models/bsnl_plan_model.dart';
@@ -36,6 +37,7 @@ class ApiServices {
   // Endpoints
   static const String _verifyMobile = "verify_mobile.php";
   static const String _generateOTP = "generate_otp.php";
+  static const String _verifyOTP = "verify_otp.php";
   static const String _registerCustomer = "register_customer.php";
   static const String _getCustomerDetails = "get_customer_details.php";
   static const String _viewComplaint = "view_complaint.php";
@@ -91,24 +93,84 @@ class ApiServices {
     }
   }
 
-  Future<String?> getOTP(String phoneNumber) async {
-    final body = {"mobile": phoneNumber, "action": "send", "gateway": "text"};
+  Future<GenerateOTPResponse?> generateOTP(
+    String phoneNumber, {
+    bool? resend = false,
+    bool? isWhatsApp = true,
+  }) async {
+    final body = {
+      "mobile": phoneNumber,
+      "action": resend! ? "resend" : "send",
+      "is_whatsapp": isWhatsApp! ? "whatsapp" : "text",
+    };
     try {
       final res = await _apiClient.post(
         _generateOTP,
         body: body,
         ignoreToken: true,
       );
-      final r = jsonDecode(res.body);
-      if (r['status'] == 'success') {
-        return r['data']['otp'].toString();
-      }
-      // _apiClient.handleResponse(
-      // res,
-      // (json) => VerifyMobileResponse.fromJson(json),
-      // );
+      return _apiClient.handleResponse(
+        res,
+        (json) => GenerateOTPResponse.fromJson(json),
+      );
     } catch (e) {
-      return 'N/A';
+      developer.log(
+        'Error in generateOTP: $e',
+        name: 'ApiServices.generateOTP',
+      );
+      return null;
+    }
+  }
+
+  /// Verify OTP for customer login
+  ///
+  /// Request: {"otp": "358250", "mobile": "8293845690"}
+  /// Response: {
+  ///   "status": "success",
+  ///   "message": "Valid customer",
+  ///   "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  ///   "data": {
+  ///     "id": 56,
+  ///     "role": "customer",
+  ///     "Account_status": "Active"
+  ///   },
+  ///   "action": "Dear user thank you for login",
+  ///   "service_status": "Active"
+  /// }
+  Future<VerifyOTPResponse?> verifyOTP({
+    required String otp,
+    required String mobile,
+  }) async {
+    final body = {"otp": otp, "mobile": mobile};
+
+    try {
+      final res = await _apiClient.post(
+        _verifyOTP,
+        body: body,
+        ignoreToken: true,
+      );
+
+      final response = _apiClient.handleResponse(
+        res,
+        (json) => VerifyOTPResponse.fromJson(json),
+      );
+
+      if (response != null && response.isValid) {
+        // Save token and user data to SharedPref
+        await _sharedPref.setToken(response.token);
+        await _sharedPref.setUserID(response.data.id);
+        await _sharedPref.setMobileNumber(mobile);
+
+        developer.log(
+          'OTP verified successfully for user ${response.data.id}',
+          name: 'ApiServices.verifyOTP',
+        );
+      }
+
+      return response;
+    } catch (e) {
+      developer.log('Error in verifyOTP: $e', name: 'ApiServices.verifyOTP');
+      return null;
     }
   }
 

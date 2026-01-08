@@ -7,7 +7,7 @@ import 'package:badges/badges.dart' as badges;
 
 import '../../auth/ui/scaffold_screen.dart';
 import '../../auth/ui/widgets/account_switcher.dart';
-import '../../chatbot/ui/chat_screen.dart';
+// import '../../chatbot/ui/chat_screen.dart';
 import '../../services/sharedpref.dart';
 import '../../theme/colors.dart';
 import '../../theme/theme.dart';

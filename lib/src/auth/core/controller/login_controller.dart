@@ -26,7 +26,7 @@ class LoginController extends GetxController
   final BaseApiService _baseApiService = BaseApiService(BaseApiService.api);
 
   final phoneController = TextEditingController(
-    text: AppSharedPref.instance.getMobileNumber() ?? "5523235656",
+    text: AppSharedPref.instance.getMobileNumber(),
   );
   // late AnimationController _animationController;
   // late Animation<double> logoAnimation;
@@ -81,7 +81,7 @@ class LoginController extends GetxController
       print("Attempting to verify mobile: $phoneNumber");
 
       final verifyResponse = await _apiService.mobileVerification(phoneNumber);
-      final otp = await _apiService.getOTP(phoneNumber);
+      final otp = await _apiService.generateOTP(phoneNumber);
 
       if (verifyResponse == null) {
         // _baseApiService.showSnackbar(
@@ -92,7 +92,7 @@ class LoginController extends GetxController
       }
 
       if (verifyResponse.status == "success") {
-        AppSharedPref.instance.setOTP(otp!);
+        // AppSharedPref.instance.setOTP(otp.otp);
         final role = verifyResponse.data.userRole;
         final userId =
             verifyResponse.data.userId ?? verifyResponse.data.customerId ?? -1;
@@ -178,22 +178,22 @@ class LoginController extends GetxController
             break;
 
           case UserRole.technician:
+            // ✅ CHANGED: Technicians also go through OTP verification
             AppSharedPref.instance.setToken(token);
             AppSharedPref.instance.setUserID(userId);
             AppSharedPref.instance.setMobileNumber(phoneNumber);
             AppSharedPref.instance.setRole("technician");
-            // After successful login and saving user ID in shared prefs
-            // Get.to(
-            //   () => OTPScreen(),
-            //   binding: OTPBinding(
-            //     phoneNumber: phoneNumber,
-            //     token: token,
-            //     userID: userId,
-            //     underReview: verifyResponse.serviceStatus == "under_review",
-            //     // underReview: verifyResponse.serviceStatus == "feasible",
-            //   ),
-            // );
-            Get.toNamed(AppRoutes.technicianDashboard);
+
+            // Show OTP screen for verification
+            Get.to(
+              () => OTPScreen(),
+              binding: OTPBinding(
+                phoneNumber: phoneNumber,
+                token: token,
+                userID: userId,
+                underReview: verifyResponse.serviceStatus == "under_review",
+              ),
+            );
             break;
 
           // case UserRole.admin:

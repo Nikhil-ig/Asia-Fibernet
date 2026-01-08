@@ -74,38 +74,38 @@ class OTPScreen extends GetView<OTPController> {
                 SizedBox(height: 24.h), // Use .h for spacing
                 // Resend OTP Section (Reusable Widget)
                 _ResendOtpSection(controller: controller),
-                Spacer(),
-                Padding(
-                  padding: EdgeInsets.only(
-                    bottom: 40.h,
-                  ), // Use .h for bottom padding
-                  child: ElevatedButton(
-                    onPressed: () {
-                      controller.verifyAndLogin();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor:
-                          Colors.white, // Add foreground color for text
-                      minimumSize: Size(
-                        double.infinity,
-                        56.h,
-                      ), // Use .h for button height
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          12.r,
-                        ), // Use .r for border radius
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      "VERIFY & LOGIN",
-                      style:
-                          AppText
-                              .button, // Ensure AppText.button is responsive or adjust here
-                    ),
-                  ),
-                ),
+                // Spacer(),
+                // Padding(
+                //   padding: EdgeInsets.only(
+                //     bottom: 40.h,
+                //   ), // Use .h for bottom padding
+                //   child: ElevatedButton(
+                //     onPressed: () {
+                //       controller.verifyAndLogin();
+                //     },
+                //     style: ElevatedButton.styleFrom(
+                //       backgroundColor: AppColors.primary,
+                //       foregroundColor:
+                //           Colors.white, // Add foreground color for text
+                //       minimumSize: Size(
+                //         double.infinity,
+                //         56.h,
+                //       ), // Use .h for button height
+                //       shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(
+                //           12.r,
+                //         ), // Use .r for border radius
+                //       ),
+                //       elevation: 0,
+                //     ),
+                //     child: Text(
+                //       "VERIFY & LOGIN",
+                //       style:
+                //           AppText
+                //               .button, // Ensure AppText.button is responsive or adjust here
+                //     ),
+                //   ),
+                // ),
               ],
             ),
           ),

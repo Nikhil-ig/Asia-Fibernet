@@ -163,3 +163,9 @@ app.*.symbols
 .python-version
 .gclient_previous_custom_vars
 .gclient_previous_sync_commits
+lib/src/chatbot.zip
+OTP_API_UPDATE.md
+OTP_API_SUMMARY.txt
+OTP_API_INTEGRATION.md
+OTP_BEFORE_AFTER.md
+OTP_API_QUICK_REFERENCE.md

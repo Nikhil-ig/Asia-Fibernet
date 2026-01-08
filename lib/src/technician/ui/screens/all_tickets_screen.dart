@@ -276,7 +276,7 @@ class AllTicketsController extends GetxController {
                       Iconsax.close_circle,
                       color: AppColors.textColorSecondary,
                     ),
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -386,38 +386,38 @@ class AllTicketsController extends GetxController {
                       ),
                     ),
                     SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: () async {
-                        // Start background location tracking when calling customer
-                        try {
-                          final ticketDate = DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(DateTime.now());
-                          await _bgService.startTracking(
-                            ticketDate: ticketDate,
-                            intervalSeconds: 60,
-                          );
-                        } catch (e) {
-                          print('⚠️ Failed to start tracking: $e');
-                        }
 
-                        Get.to(
-                          () => CallScreen(
-                            customerName:
-                                ticket.customerName ??
-                                "Unknown", // Default value if null
-                            customerNumber:
-                                ticket.customerMobileNo ??
-                                "Unknown", // Default value if null
-                          ),
-                        );
-                      },
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: Center(child: Text("Make Call")),
-                      ),
-                    ),
+                    // ElevatedButton(
+                    //   onPressed: () async {
+                    //     // Start background location tracking when calling customer
+                    //     try {
+                    //       final ticketDate = DateFormat(
+                    //         'yyyy-MM-dd',
+                    //       ).format(DateTime.now());
+                    //       await _bgService.startTracking(
+                    //         ticketDate: ticketDate,
+                    //         intervalSeconds: 60,
+                    //       );
+                    //     } catch (e) {
+                    //       print('⚠️ Failed to start tracking: $e');
+                    //     }
 
+                    //     Get.to(
+                    //       () => CallScreen(
+                    //         customerName:
+                    //             ticket.customerName ??
+                    //             "Unknown", // Default value if null
+                    //         customerNumber:
+                    //             ticket.customerMobileNo ??
+                    //             "Unknown", // Default value if null
+                    //       ),
+                    //     );
+                    //   },
+                    //   child: SizedBox(
+                    //     width: double.infinity,
+                    //     child: Center(child: Text("Make Call")),
+                    //   ),
+                    // ),
                     if (ticket.description != null)
                       _section("Issue Description", ticket.description!),
                     SizedBox(height: 16),
@@ -1994,10 +1994,10 @@ class AllTicketsScreen extends StatelessWidget {
                                 SizedBox(height: 4),
                                 Text(
                                   ticket.ticketNo,
-                                  style: AppText.headingSmall.copyWith(
+                                  style: AppText.labelSmall.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: Colors.grey.shade900,
-                                    fontSize: 20,
+                                    // fontSize: 20,
                                     letterSpacing: -0.5,
                                   ),
                                 ),
@@ -2436,16 +2436,16 @@ class AllTicketsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 18, color: color),
-              ),
-              SizedBox(width: 12),
+              // Container(
+              //   width: 36,
+              //   height: 36,
+              //   decoration: BoxDecoration(
+              //     color: color.withOpacity(0.1),
+              //     borderRadius: BorderRadius.circular(10),
+              //   ),
+              //   child: Icon(icon, size: 18, color: color),
+              // ),
+              // SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2495,16 +2495,16 @@ class AllTicketsScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: iconColor),
-            ),
-            SizedBox(width: 12),
+            // Container(
+            //   width: 36,
+            //   height: 36,
+            //   decoration: BoxDecoration(
+            //     color: iconColor.withOpacity(0.1),
+            //     borderRadius: BorderRadius.circular(10),
+            //   ),
+            //   child: Icon(icon, size: 18, color: iconColor),
+            // ),
+            // SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

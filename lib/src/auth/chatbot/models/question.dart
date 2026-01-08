@@ -3,7 +3,7 @@ class Question {
   final String? id;
   final String text;
   final List<String> options;
-  final int correctIndex; // -1 if no correct answer (e.g., input collection)
+  final int correctIndex; 
   final String answer;
 
   const Question({
