@@ -1,6 +1,5 @@
 // ignore_for_file: avoid_print
 
-import 'package:asia_fibernet/src/services/routes.dart';
 import 'package:asia_fibernet/src/services/sharedpref.dart';
 
 import 'package:get/get.dart';
@@ -81,7 +80,7 @@ class LoginController extends GetxController
       print("Attempting to verify mobile: $phoneNumber");
 
       final verifyResponse = await _apiService.mobileVerification(phoneNumber);
-      final otp = await _apiService.generateOTP(phoneNumber);
+      await _apiService.generateOTP(phoneNumber);
 
       if (verifyResponse == null) {
         // _baseApiService.showSnackbar(
@@ -205,12 +204,8 @@ class LoginController extends GetxController
           // Get.to(() => AdminDashboardScreen());
           // break;
 
-          case UserRole.unknown:
-          // This case is now handled by the 'isGuest' check above.
-          // If you reach here, it means token wasn't empty but role was unknown.
-          // You might want to handle this differently, maybe as an error.
           default:
-            // Handle any other unexpected roles if necessary
+            // Handle any other unexpected roles
             // _baseApiService.showSnackbar(
             //   "Access Denied",
             //   "Your account type is not recognized. Please contact support.",

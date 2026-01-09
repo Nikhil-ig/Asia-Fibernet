@@ -208,8 +208,8 @@ class OTPController extends GetxController {
 
           _baseApiService.showSnackbar("Success", verifyResponse.message);
 
-          // 🔑 Check user role and navigate accordingly
-          final userRole = AppSharedPref.instance.getRole();
+          // 🔑 Check user role from response and navigate accordingly
+          final userRole = verifyResponse.data.role;
           if (userRole == "technician") {
             Get.offAllNamed(AppRoutes.technicianDashboard);
           } else {

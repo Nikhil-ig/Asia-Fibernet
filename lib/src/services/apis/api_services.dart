@@ -160,6 +160,7 @@ class ApiServices {
         await _sharedPref.setToken(response.token);
         await _sharedPref.setUserID(response.data.id);
         await _sharedPref.setMobileNumber(mobile);
+        await _sharedPref.setRole(response.data.role);
 
         developer.log(
           'OTP verified successfully for user ${response.data.id}',

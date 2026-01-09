@@ -114,7 +114,9 @@ class HomeController extends GetxController {
     isRelocationLoading(true);
     try {
       final data = await apiServices.checkRelocationStatus(mobile);
-      if (data != null && data.containsKey('data')) {
+      if (data != null &&
+          data.containsKey('data') &&
+          data['status'] == 'success') {
         relocationStatus.value = data['data'];
       } else {
         relocationStatus.value = null;
