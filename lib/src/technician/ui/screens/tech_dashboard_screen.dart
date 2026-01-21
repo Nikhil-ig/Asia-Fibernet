@@ -13,6 +13,9 @@ import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:asia_fibernet/src/customer/core/models/ticket_category_model.dart';
+import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_model.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
 import '../../../theme/colors.dart';
@@ -20,7 +23,6 @@ import '../../../theme/theme.dart';
 import '../../core/models/tech_dashboard_model.dart';
 import '../../attendance/attendance_screen.dart';
 import 'notifications_screen.dart';
-import 'technician_profile_screen.dart';
 import 'settings_screen.dart';
 
 // Model for recent tickets (simplified)
@@ -53,7 +55,6 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
   List<RecentTicket> _recentTickets = [];
   bool _loading = true;
   int _notificationCount = 0;
-  late TooltipBehavior _tooltipBehavior;
 
   // Store today's tickets from new API
   List<Map<String, dynamic>> _todayTickets = [];
@@ -75,7 +76,6 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _tooltipBehavior = TooltipBehavior(enable: true);
     _loadDashboard();
     _loadTodayTickets(); // Load today's tickets
   }
@@ -428,43 +428,46 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         // const SizedBox(height: 20),
 
         // Stats Grid
-        FadeInUp(
-          delay: const Duration(milliseconds: 500),
-          duration: const Duration(milliseconds: 1000),
-          child: GridView.count(
-            padding: EdgeInsets.all(0),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 15,
-            mainAxisSpacing: 15,
-            childAspectRatio: 1.2,
-            children: [
-              _statCard(
-                "Open Tickets",
-                data.tickets.openTickets ?? '0',
-                Iconsax.clock,
-                AppColors.warning,
-              ),
-              _statCard(
-                "Closed Tickets",
-                data.tickets.closedTickets ?? '0',
-                Iconsax.tick_circle,
-                AppColors.success,
-              ),
-              _statCard(
-                "Total Tickets",
-                data.tickets.totalTickets.toString(),
-                Iconsax.receipt,
-                AppColors.info,
-              ),
-              _statCard(
-                "Avg Rating",
-                "${data.ratings.avgRating?.substring(0, math.min(3, data.ratings.avgRating?.length ?? 0)) ?? 'N/A'} ⭐",
-                Iconsax.star,
-                AppColors.accent1,
-              ),
-            ],
+        GestureDetector(
+          onTap: () => Get.toNamed(AppRoutes.allTickets),
+          child: FadeInUp(
+            delay: const Duration(milliseconds: 500),
+            duration: const Duration(milliseconds: 1000),
+            child: GridView.count(
+              padding: EdgeInsets.all(0),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              crossAxisSpacing: 15,
+              mainAxisSpacing: 15,
+              childAspectRatio: 1.2,
+              children: [
+                _statCard(
+                  "Open Tickets",
+                  data.tickets.openTickets ?? '0',
+                  Iconsax.clock,
+                  AppColors.warning,
+                ),
+                _statCard(
+                  "Closed Tickets",
+                  data.tickets.closedTickets ?? '0',
+                  Iconsax.tick_circle,
+                  AppColors.success,
+                ),
+                _statCard(
+                  "Total Tickets",
+                  data.tickets.totalTickets.toString(),
+                  Iconsax.receipt,
+                  AppColors.info,
+                ),
+                _statCard(
+                  "Avg Rating",
+                  "${data.ratings.avgRating?.substring(0, math.min(3, data.ratings.avgRating?.length ?? 0)) ?? 'N/A'} ⭐",
+                  Iconsax.star,
+                  AppColors.accent1,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 40),
@@ -981,7 +984,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
 // TechnicianTicketCard Widget (Reusable)
 // ================================================
 
-class TechnicianTicketCard extends StatelessWidget {
+class TechnicianTicketCard extends StatefulWidget {
   final Map<String, dynamic> ticket;
   final TechnicianAPI api;
   final VoidCallback onUpdated;
@@ -992,6 +995,45 @@ class TechnicianTicketCard extends StatelessWidget {
     required this.api,
     required this.onUpdated,
   });
+
+  @override
+  State<TechnicianTicketCard> createState() => _TechnicianTicketCardState();
+}
+
+class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
+  FindCustomerDetail? customerDetail;
+  bool isLoadingCustomer = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomerDetails();
+  }
+
+  Future<void> _loadCustomerDetails() async {
+    final customerId = widget.ticket['customer_id'];
+    if (customerId == null) return;
+
+    setState(() {
+      isLoadingCustomer = true;
+    });
+
+    try {
+      final detail = await widget.api.fetchCustomerById(customerId);
+      if (mounted) {
+        setState(() {
+          customerDetail = detail;
+          isLoadingCustomer = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isLoadingCustomer = false;
+        });
+      }
+    }
+  }
 
   // Map status text → stage ID
   int _getStatusId(String? status) {
@@ -1026,8 +1068,44 @@ class TechnicianTicketCard extends StatelessWidget {
     }
   }
 
+  // Open location on Google Maps
+  Future<void> _openLocationOnMap(double latitude, double longitude) async {
+    try {
+      // Check if latitude and longitude are valid (not 0.00)
+      if (latitude == 0.0 && longitude == 0.0) {
+        BaseApiService().showSnackbar(
+          "Invalid Location",
+          "No valid location data available",
+          isError: true,
+        );
+        return;
+      }
+
+      // Create Google Maps URL
+      final url =
+          'https://www.google.com/maps/search/$latitude,$longitude/@$latitude,$longitude,15z';
+
+      // Try to launch the URL
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        BaseApiService().showSnackbar(
+          "Error",
+          "Could not open map application",
+          isError: true,
+        );
+      }
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to open location: $e",
+        isError: true,
+      );
+    }
+  }
+
   void _autoAdvanceStage(BuildContext context) async {
-    final datas = List<Map<String, dynamic>>.from(ticket['datas'] ?? []);
+    final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
     final latest = datas.isNotEmpty ? datas.last : {};
     final currentStatus = latest['status']?.toString();
     final currentStageId = _getStatusId(currentStatus);
@@ -1037,6 +1115,12 @@ class TechnicianTicketCard extends StatelessWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('✅ Job already completed!')));
+      return;
+    }
+
+    // If at stage 4 (Work in Progress), show final step options
+    if (currentStageId == 4) {
+      _showFinalStepDialog(context);
       return;
     }
 
@@ -1055,9 +1139,9 @@ class TechnicianTicketCard extends StatelessWidget {
     ).showSnackBar(const SnackBar(content: Text('Updating stage...')));
 
     try {
-      final success = await api.updateLiveTicketStatus(
-        ticketNo: ticket['ticket_no'],
-        customerId: ticket['customer_id'] ?? 0,
+      final success = await widget.api.updateLiveTicketStatus(
+        ticketNo: widget.ticket['ticket_no'],
+        customerId: widget.ticket['customer_id'] ?? 0,
         currentStage: nextStageId,
         status: nextStatus,
         lat: lat,
@@ -1068,7 +1152,7 @@ class TechnicianTicketCard extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('✅ Stage updated to: $nextStatus')),
         );
-        onUpdated();
+        widget.onUpdated();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1084,14 +1168,867 @@ class TechnicianTicketCard extends StatelessWidget {
     }
   }
 
+  void _showFinalStepDialog(BuildContext context) {
+    String selectedOption = 'resolved'; // Default selection
+    int? selectedCategory; // For category dropdown
+    int? selectedSubCategory; // For sub-category dropdown
+    String? selectedDescription; // For description dropdown
+
+    // Fetch category list
+    List<CategoryData> categoryList = [];
+
+    // Load categories asynchronously
+    Future<void> _loadCategories() async {
+      try {
+        final response = await ApiServices().getTicketCategory();
+        if (response != null) {
+          categoryList = response.data;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          BaseApiService().showSnackbar("Error", "Failed to load categories");
+        }
+      }
+    }
+
+    // Load categories before showing dialog
+    _loadCategories().then((_) {
+      if (!context.mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (BuildContext ctx) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return Container(
+                height: MediaQuery.of(context).size.height * 0.90,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Handle Bar
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.done_all,
+                              color: AppColors.primary,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Complete Job',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textColorPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Add issue details first, then choose action',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textColorSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ===== STEP 1: Issue Details Section =====
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade100,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.info_outline,
+                                      color: Colors.blue.shade700,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Step 1: Issue Details',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.blue.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Fill all details below',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.blue.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            // Category Dropdown
+                            _buildCustomDropdown(
+                              label: 'Category *',
+                              hint: 'Select category...',
+                              value: selectedCategory,
+                              items:
+                                  categoryList
+                                      .map(
+                                        (cat) => DropdownMenuItem(
+                                          value: cat.categoryId,
+                                          child: Text(cat.categoryName),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  selectedCategory = value;
+                                  selectedSubCategory = null;
+                                  selectedDescription = null;
+                                });
+                              },
+                              icon: Icons.category,
+                            ),
+                            const SizedBox(height: 16),
+                            // SubCategory Dropdown
+                            _buildCustomDropdown(
+                              label: 'Sub Category *',
+                              hint: 'Select sub category...',
+                              value: selectedSubCategory,
+                              isEnabled: selectedCategory != null,
+                              items:
+                                  selectedCategory != null
+                                      ? (categoryList
+                                          .firstWhere(
+                                            (cat) =>
+                                                cat.categoryId ==
+                                                selectedCategory,
+                                          )
+                                          .subcategories
+                                          .map(
+                                            (subCat) => DropdownMenuItem(
+                                              value: subCat.subcategoryId,
+                                              child: Text(
+                                                subCat.subcategoryName,
+                                              ),
+                                            ),
+                                          )
+                                          .toList())
+                                      : [],
+                              onChanged: (value) {
+                                if (selectedCategory != null && value != null) {
+                                  setState(() {
+                                    selectedSubCategory = value;
+                                    selectedDescription = null;
+                                  });
+                                }
+                              },
+                              icon: Icons.subdirectory_arrow_right,
+                            ),
+                            const SizedBox(height: 16),
+                            // Description Text Field
+                            _buildDescriptionField(
+                              label: 'Description *',
+                              hint:
+                                  selectedSubCategory == null
+                                      ? 'Select sub category first'
+                                      : 'Enter issue description...',
+                              isEnabled: selectedSubCategory != null,
+                              onChanged: (value) {
+                                setState(() {
+                                  selectedDescription =
+                                      value.isEmpty ? null : value;
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 24),
+
+                            // ===== STEP 2: Action Selection =====
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.orange.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade100,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.check_circle,
+                                      color: Colors.orange.shade700,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Step 2: Choose Action',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'After filling details, select action',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Select Action',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textColorPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Resolved Option Card
+                            _buildStatusCard(
+                              title: 'Mark as Resolved ✅',
+                              subtitle: 'Complete the job and close the ticket',
+                              isSelected: selectedOption == 'resolved',
+                              onTap:
+                                  selectedCategory != null &&
+                                          selectedSubCategory != null &&
+                                          selectedDescription != null
+                                      ? () {
+                                        setState(
+                                          () => selectedOption = 'resolved',
+                                        );
+                                      }
+                                      : null,
+                              icon: Icons.check_circle_outline,
+                              isEnabled:
+                                  selectedCategory != null &&
+                                  selectedSubCategory != null &&
+                                  selectedDescription != null,
+                            ),
+                            const SizedBox(height: 12),
+                            // Reassign Option Card
+                            _buildStatusCard(
+                              title: 'Reassign with Details 🔄',
+                              subtitle: 'Add issue details and reassign',
+                              isSelected: selectedOption == 'reassign',
+                              onTap:
+                                  selectedCategory != null &&
+                                          selectedSubCategory != null &&
+                                          selectedDescription != null
+                                      ? () {
+                                        setState(
+                                          () => selectedOption = 'reassign',
+                                        );
+                                      }
+                                      : null,
+                              icon: Icons.sync,
+                              isEnabled:
+                                  selectedCategory != null &&
+                                  selectedSubCategory != null &&
+                                  selectedDescription != null,
+                            ),
+                            const SizedBox(height: 8),
+                            // Info Box
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.green.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 16,
+                                    color: Colors.green.shade700,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      selectedCategory == null ||
+                                              selectedSubCategory == null ||
+                                              selectedDescription == null
+                                          ? '⏳ Fill all details above first'
+                                          : '✅ All details filled! Choose action below',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Action Buttons
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(color: Colors.grey.shade200),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey.shade100,
+                                foregroundColor: AppColors.textColorPrimary,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed:
+                                  selectedCategory == null ||
+                                          selectedSubCategory == null ||
+                                          selectedDescription == null
+                                      ? null
+                                      : () {
+                                        Navigator.of(ctx).pop();
+                                        if (selectedOption == 'resolved') {
+                                          _completeJob(
+                                            context,
+                                            selectedCategory,
+                                            selectedSubCategory,
+                                            selectedDescription,
+                                          );
+                                        } else {
+                                          _reassignJobWithDetails(
+                                            context,
+                                            selectedCategory,
+                                            selectedSubCategory,
+                                            selectedDescription,
+                                          );
+                                        }
+                                      },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    selectedOption == 'resolved'
+                                        ? Colors.green
+                                        : Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                selectedOption == 'resolved'
+                                    ? 'Resolve'
+                                    : 'Reassign',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    });
+  }
+
+  // Helper widget for Status Card
+  Widget _buildStatusCard({
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback? onTap,
+    required IconData icon,
+    bool isEnabled = true,
+  }) {
+    return GestureDetector(
+      onTap: isEnabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color:
+                isSelected
+                    ? AppColors.primary
+                    : isEnabled
+                    ? Colors.grey.shade300
+                    : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          color:
+              isSelected
+                  ? AppColors.primary.withOpacity(0.08)
+                  : isEnabled
+                  ? Colors.transparent
+                  : Colors.grey.shade50,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color:
+                    isSelected
+                        ? AppColors.primary.withOpacity(0.15)
+                        : isEnabled
+                        ? Colors.grey.shade100
+                        : Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color:
+                    isSelected
+                        ? AppColors.primary
+                        : isEnabled
+                        ? Colors.grey.shade600
+                        : Colors.grey.shade400,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isEnabled
+                              ? AppColors.textColorPrimary
+                              : Colors.grey.shade400,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          isEnabled
+                              ? AppColors.textColorSecondary
+                              : Colors.grey.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check, color: Colors.white, size: 16),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for Custom Dropdown
+  Widget _buildCustomDropdown({
+    required String label,
+    required String hint,
+    required dynamic value,
+    required List<DropdownMenuItem> items,
+    required dynamic Function(dynamic) onChanged,
+    required IconData icon,
+    bool isEnabled = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textColorPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isEnabled ? Colors.grey.shade300 : Colors.grey.shade200,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            color: isEnabled ? Colors.white : Colors.grey.shade50,
+          ),
+          child: DropdownButton(
+            value: value,
+            hint: Row(
+              children: [
+                Icon(icon, size: 18, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  hint,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                ),
+              ],
+            ),
+            isExpanded: true,
+            underline: const SizedBox(),
+            disabledHint: Row(
+              children: [
+                Icon(icon, size: 18, color: Colors.grey.shade300),
+                const SizedBox(width: 8),
+                Text(
+                  hint,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                ),
+              ],
+            ),
+            items: items,
+            onChanged: isEnabled ? onChanged : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper widget for Description Field
+  Widget _buildDescriptionField({
+    required String label,
+    required String hint,
+    required Function(String) onChanged,
+    required bool isEnabled,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textColorPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          onChanged: onChanged,
+          enabled: isEnabled,
+          maxLines: 3,
+          minLines: 2,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(
+                left: 12,
+                right: 8,
+                top: 12,
+                bottom: 12,
+              ),
+              child: Icon(
+                Icons.description_outlined,
+                color: isEnabled ? Colors.grey.shade600 : Colors.grey.shade300,
+                size: 20,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            filled: true,
+            fillColor: isEnabled ? Colors.white : Colors.grey.shade50,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _completeJob(
+    BuildContext context,
+    int? categoryId,
+    int? subCategoryId,
+    String? description,
+  ) async {
+    if (categoryId == null || subCategoryId == null || description == null) {
+      BaseApiService().showSnackbar("Error", "Please fill all required fields");
+      return;
+    }
+
+    final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
+    final latest = datas.isNotEmpty ? datas.last : {};
+    final lat = (latest['lat'] ?? latest['latitude'] ?? '12.9716').toString();
+    final long =
+        (latest['long'] ?? latest['longitude'] ?? '77.5946').toString();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✅ Completing job...'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    try {
+      final success = await widget.api.updateTicketWorkStatus(
+        ticketNo: widget.ticket['ticket_no'],
+        customerId: widget.ticket['customer_id'] ?? 0,
+        currentStage: 5,
+        status: 'Completed',
+        lat: lat,
+        long: long,
+        closureCategory: categoryId.toString(),
+        closureSubcategory: subCategoryId.toString(),
+        closureRemark: description,
+      );
+
+      if (success != null && success is Map && success['status'] == 'error') {
+        // API returned an error response
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '❌ ${success['message'] ?? 'Failed to complete job'}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else if (success != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Job completed and ticket closed!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onUpdated();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to complete job'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('⚠️ Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _reassignJobWithDetails(
+    BuildContext context,
+    int? categoryId,
+    int? subCategoryId,
+    String? description,
+  ) async {
+    if (categoryId == null || subCategoryId == null || description == null) {
+      BaseApiService().showSnackbar("Error", "Please fill all required fields");
+      return;
+    }
+
+    final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
+    final latest = datas.isNotEmpty ? datas.last : {};
+    final lat = (latest['lat'] ?? latest['latitude'] ?? '12.9716').toString();
+    final long =
+        (latest['long'] ?? latest['longitude'] ?? '77.5946').toString();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🔄 Reassigning job and closing ticket...'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+
+    try {
+      final success = await widget.api.updateTicketWorkStatus(
+        ticketNo: widget.ticket['ticket_no'],
+        customerId: widget.ticket['customer_id'] ?? 0,
+        currentStage: 5, // Move to Completed stage to close ticket
+        status: 'Completed',
+        lat: lat,
+        long: long,
+        closureCategory: categoryId.toString(),
+        closureSubcategory: subCategoryId.toString(),
+        closureRemark: description,
+      );
+
+      if (success != null && success is Map && success['status'] == 'error') {
+        // API returned an error response
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '❌ ${success['message'] ?? 'Failed to reassign job'}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else if (success != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Job reassigned with details and ticket closed!'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        widget.onUpdated();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to reassign job, Error: $success'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('⚠️ Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ticketNo = ticket['ticket_no'] ?? 'N/A';
-    final technician = ticket['technician'] ?? '—';
-    final status = ticket['status'] ?? 'Unknown';
-    final createdAt = ticket['created_at'] ?? '';
+    final ticketNo = widget.ticket['ticket_no'] ?? 'N/A';
+    final status = widget.ticket['status'] ?? 'Unknown';
+    final priority = widget.ticket['priority'] ?? 'Medium';
+    // final customerId = widget.ticket['customer_id'] ?? 'N/A';
+    final customerId =
+        widget.ticket['OLT_IP'] ?? widget.ticket['customer_id'] ?? '';
 
-    final datas = List<Map<String, dynamic>>.from(ticket['datas'] ?? []);
+    final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
     final latest = datas.isNotEmpty ? datas.last : {};
 
     String formatDate(String? dt) {
@@ -1108,7 +2045,13 @@ class TechnicianTicketCard extends StatelessWidget {
     // Determine button label
     final currentStageId = _getStatusId(latest['status']);
     final isCompleted = currentStageId == 5;
-    final buttonText = isCompleted ? 'Job Completed' : 'Mark as Next Step';
+    final isFinalStep = currentStageId == 4;
+    final buttonText =
+        isCompleted
+            ? 'Job Completed'
+            : isFinalStep
+            ? 'Complete Job'
+            : 'Mark as Next Step';
 
     return Card(
       // margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1122,13 +2065,26 @@ class TechnicianTicketCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    '$ticketNo',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$ticketNo',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Customer : $customerId',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Container(
@@ -1151,17 +2107,174 @@ class TechnicianTicketCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Technician: $technician',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            Text(
-              'Created: ${formatDate(createdAt)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            const SizedBox(height: 6),
+
+            GestureDetector(
+              onTap: () {
+                // Open location on map using ticket coordinates
+                final lat =
+                    double.tryParse(
+                      latest['latitude']?.toString() ??
+                          latest['lat']?.toString() ??
+                          '0.00',
+                    ) ??
+                    0.0;
+                final long =
+                    double.tryParse(
+                      latest['longitude']?.toString() ??
+                          latest['long']?.toString() ??
+                          '0.00',
+                    ) ??
+                    0.0;
+                _openLocationOnMap(lat, long);
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Customer: ${customerDetail?.contactName ?? 'Customer'}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Address: ${customerDetail?.address ?? 'N/A'}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                          // maxLines: 2,
+                          overflow: TextOverflow.clip,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getPriorityColor(priority).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _getPriorityColor(priority).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      priority,
+                      style: TextStyle(
+                        color: _getPriorityColor(priority),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
+            // Status History Timeline
+            if (datas.isNotEmpty) ...[
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Status Timeline (${datas.length})',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: datas.length,
+                      separatorBuilder:
+                          (_, __) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Container(
+                              height: 1,
+                              color: Colors.grey.shade300,
+                            ),
+                          ),
+                      itemBuilder: (context, idx) {
+                        final statusData = datas[idx];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(statusData['status']),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      statusData['status'] ?? '—',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    Text(
+                                      formatDate(statusData['date_time']),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // if (statusData['lat'] != null &&
+                              //     statusData['lat'] != '0.00')
+                              //   Tooltip(
+                              //     message:
+                              //         'Lat: ${statusData['lat']}, Long: ${statusData['long']}',
+                              //     child: Container(
+                              //       padding: const EdgeInsets.all(4),
+                              //       decoration: BoxDecoration(
+                              //         color: Colors.blue.shade100,
+                              //         borderRadius: BorderRadius.circular(4),
+                              //       ),
+                              //       child: const Icon(
+                              //         Icons.location_on,
+                              //         size: 14,
+                              //         color: Colors.blue,
+                              //       ),
+                              //     ),
+                              //   ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Latest status
             if (latest.isNotEmpty) ...[
@@ -1181,7 +2294,7 @@ class TechnicianTicketCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          latest['status'] ?? '—',
+                          'Current: ${latest['status'] ?? '—'}',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
@@ -1199,47 +2312,106 @@ class TechnicianTicketCard extends StatelessWidget {
               const SizedBox(height: 16),
             ],
 
-            // Auto-advance button
-            Center(
-              child: ElevatedButton.icon(
-                onPressed:
-                    isCompleted ? null : () => _autoAdvanceStage(context),
-                icon: Icon(
-                  isCompleted ? Icons.check : Icons.arrow_forward,
-                  size: 18,
-                ),
-                label: Text(buttonText),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isCompleted ? Colors.green.shade200 : AppColors.primary,
-                  foregroundColor:
-                      isCompleted ? Colors.green.shade800 : Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+            // Action Buttons Row
+            Column(
+              spacing: 10,
+              children: [
+                // ElevatedButton.icon(
+                //   onPressed: () {
+                //     final lat =
+                //         double.tryParse(
+                //           latest['latitude']?.toString() ??
+                //               latest['lat']?.toString() ??
+                //               '0.00',
+                //         ) ??
+                //         0.0;
+                //     final long =
+                //         double.tryParse(
+                //           latest['longitude']?.toString() ??
+                //               latest['long']?.toString() ??
+                //               '0.00',
+                //         ) ??
+                //         0.0;
+                //     _openLocationOnMap(lat, long);
+                //   },
+                //   icon: const Icon(Icons.location_on, size: 18),
+                //   label: const Text('Location'),
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.blue,
+                //     foregroundColor: Colors.white,
+                //     padding: const EdgeInsets.symmetric(
+                //       horizontal: 16,
+                //       vertical: 12,
+                //     ),
+                //     shape: RoundedRectangleBorder(
+                //       borderRadius: BorderRadius.circular(10),
+                //     ),
+                //     elevation: 2,
+                //   ),
+                // ),
+                SizedBox(width: double.infinity),
+                // Auto-advance button
+                ElevatedButton.icon(
+                  onPressed:
+                      isCompleted ? null : () => _autoAdvanceStage(context),
+                  icon: Icon(
+                    isCompleted
+                        ? Icons.check
+                        : isFinalStep
+                        ? Icons.done_all
+                        : Icons.arrow_forward,
+                    size: 18,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                  label: Text(buttonText),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isCompleted
+                            ? Colors.green.shade200
+                            : isFinalStep
+                            ? Colors.green
+                            : AppColors.primary,
+                    foregroundColor:
+                        isCompleted
+                            ? Colors.green.shade800
+                            : isFinalStep
+                            ? Colors.white
+                            : Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 2,
                   ),
-                  elevation: 2,
                 ),
-              ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Color _getStatusColor(String? status) {
-    if (status == null) return Colors.grey;
-    final s = status.toLowerCase();
-    if (s.contains('assigned')) return Colors.blue;
-    if (s.contains('accept')) return Colors.cyan;
-    if (s.contains('way')) return Colors.orange;
-    if (s.contains('reached')) return Colors.purple;
-    if (s.contains('progress')) return Colors.deepOrange;
-    if (s.contains('completed') || s.contains('resolved')) return Colors.green;
-    return Colors.grey;
-  }
+Color _getStatusColor(String? status) {
+  if (status == null) return Colors.grey;
+  final s = status.toLowerCase();
+  if (s.contains('assigned')) return Colors.blue;
+  if (s.contains('accept')) return Colors.cyan;
+  if (s.contains('way')) return Colors.orange;
+  if (s.contains('reached')) return Colors.purple;
+  if (s.contains('progress')) return Colors.deepOrange;
+  if (s.contains('completed') || s.contains('resolved')) return Colors.green;
+  return Colors.grey;
+}
+
+Color _getPriorityColor(String? priority) {
+  if (priority == null) return Colors.grey;
+  final p = priority.toLowerCase().trim();
+  if (p == 'high') return Colors.red;
+  if (p == 'medium') return Colors.orange;
+  if (p == 'low') return Colors.green;
+  return Colors.grey;
 }

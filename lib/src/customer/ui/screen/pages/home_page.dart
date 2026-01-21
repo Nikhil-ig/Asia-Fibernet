@@ -323,7 +323,7 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: _buildPlanRequestStatus(),
               ),
-              DisconnectionStatusWidget(),
+              // DisconnectionStatusWidget(),
             ],
           ),
         ),

@@ -112,6 +112,7 @@ class AppTextField extends StatelessWidget {
               (maxLength == 10)
                   ? [
                     FilteringTextInputFormatter.digitsOnly,
+                    // ✅ Only limit length, digits are already filtered
                     LengthLimitingTextInputFormatter(10),
                   ]
                   : inputFormatters,

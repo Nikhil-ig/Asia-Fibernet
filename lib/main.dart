@@ -1,5 +1,5 @@
 // main.dart
-import 'package:asia_fibernet/src/services/apis/base_api_service.dart';
+import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -13,6 +13,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // ✅ Fixed import paths (no spaces)
+import '/src/services/apis/base_api_service.dart';
 import 'src/auth/core/controller/binding/login_binding.dart';
 import 'src/services/apis/api_services.dart';
 import 'src/services/routes.dart';
@@ -49,6 +50,11 @@ void main() async {
     }
   });
 
+  // ✅ Initialize AppSharedPref FIRST (before using it)
+  tz.initializeTimeZones();
+  await ScreenUtil.ensureScreenSize();
+  await AppSharedPref.init();
+
   // --- START: MORE ROBUST TOKEN RETRIEVAL ---
   if (kDebugMode) {
     try {
@@ -62,14 +68,30 @@ void main() async {
           'Push notifications will not work. Please use a physical device.',
         );
         print('=======================================');
+        AppSharedPref.instance.setfcmToken('ios-simulator-token');
       } else {
         // Now get the FCM token.
-        final fcmToken = await FirebaseMessaging.instance.getToken();
-        print('=======================================');
-        print('!!! COPY THIS FCM TOKEN FOR TESTING !!!');
-        print('FCM Token: $fcmToken');
-        AppSharedPref.instance.setfcmToken(fcmToken!);
-        print('=======================================');
+        try {
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          print('=======================================');
+          print('!!! COPY THIS FCM TOKEN FOR TESTING !!!');
+          print('FCM Token: $fcmToken');
+          AppSharedPref.instance.setfcmToken(fcmToken!);
+          print('=======================================');
+        } catch (firebaseError) {
+          // Handle SERVICE_NOT_AVAILABLE error gracefully
+          if (firebaseError.toString().contains('SERVICE_NOT_AVAILABLE')) {
+            print('=======================================');
+            print('⚠️  GOOGLE PLAY SERVICES NOT AVAILABLE');
+            print('Error: $firebaseError');
+            print('Fix: Use Android device with Google Play Services');
+            print('Or: Use Android emulator with Play Services version');
+            print('=======================================');
+            AppSharedPref.instance.setfcmToken('android-service-unavailable');
+          } else {
+            rethrow;
+          }
+        }
       }
     } catch (e) {
       print('=======================================');
@@ -79,6 +101,8 @@ void main() async {
         'Ensure you are on a physical iOS device and have completed the native setup.',
       );
       print('=======================================');
+      // Set a fallback token so app doesn't crash
+      AppSharedPref.instance.setfcmToken('fallback-dev-token');
     }
   }
   // --- END: MORE ROBUST TOKEN RETRIEVAL ---
@@ -131,9 +155,6 @@ void main() async {
     });
   }
 
-  tz.initializeTimeZones();
-  await ScreenUtil.ensureScreenSize();
-  await AppSharedPref.init();
   Get.put(BaseApiService());
   Get.put(ApiServices());
 
@@ -145,6 +166,43 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  /// Determines the initial route based on login state
+  String _getInitialRoute() {
+    try {
+      // Check if user is logged in
+      final isLoggedIn = AppSharedPref.instance.isUserLoggedIn();
+      final token = AppSharedPref.instance.getToken();
+      final role = AppSharedPref.instance.getRole();
+
+      print("🔍 Initial Route Check:");
+      print("   - isLoggedIn: $isLoggedIn");
+      print(
+        "   - token: ${token != null ? '${token.substring(0, min(token.length, 10))}...' : 'null'}",
+      );
+      print("   - role: $role");
+
+      if (isLoggedIn && token != null && token.isNotEmpty) {
+        // User is logged in, skip splash and go directly to home
+        print("✅ User logged in - Skipping splash");
+        switch (role) {
+          case "technician":
+            return AppRoutes.technicianDashboard;
+          case "customer":
+            return AppRoutes.home;
+          default:
+            return AppRoutes.login;
+        }
+      } else {
+        // User not logged in, show splash
+        print("❌ User not logged in - Showing splash");
+        return AppRoutes.splash;
+      }
+    } catch (e) {
+      print("⚠️ Error determining initial route: $e");
+      return AppRoutes.splash;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +266,7 @@ class MyApp extends StatelessWidget {
             ),
             initialBinding:
                 LoginBinding(), // Will be used when navigating to login
-            initialRoute: '/splash',
+            initialRoute: _getInitialRoute(),
             getPages: AppRoutes.getPages, // Use the new routes file
             // Middleware is applied to individual GetPage routes, not globally
           ),

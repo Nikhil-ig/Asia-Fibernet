@@ -8,21 +8,21 @@ class AppText {
   // Headings
   static TextStyle headingLarge = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-    fontSize: 22.sp,
+    fontSize: 16.sp,
     fontWeight: FontWeight.bold,
     color: AppColors.textColorPrimary,
   );
 
   static TextStyle headingMedium = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-    fontSize: 18.sp,
+    fontSize: 14.sp,
     fontWeight: FontWeight.bold,
     color: AppColors.textColorPrimary,
   );
 
   static TextStyle headingSmall = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-    fontSize: 14.sp,
+    fontSize: 12.sp,
     fontWeight: FontWeight.bold,
     color: AppColors.textColorPrimary,
   );
@@ -30,21 +30,21 @@ class AppText {
   // Body Text
   static TextStyle bodyLarge = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 16.sp,
+    fontSize: 13.sp,
     fontWeight: FontWeight.normal,
     color: AppColors.textColorPrimary,
   );
 
   static TextStyle bodyMedium = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 14.sp,
+    fontSize: 12.sp,
     fontWeight: FontWeight.normal,
     color: AppColors.textColorSecondary,
   );
 
   static TextStyle bodySmall = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 12.sp,
+    fontSize: 11.sp,
     fontWeight: FontWeight.normal,
     color: AppColors.textColorSecondary,
   );
@@ -52,21 +52,21 @@ class AppText {
   // Labels / Captions
   static TextStyle labelLarge = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 16.sp,
+    fontSize: 13.sp,
     fontWeight: FontWeight.w500,
     color: AppColors.textColorPrimary,
   );
 
   static TextStyle labelMedium = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 14.sp,
+    fontSize: 12.sp,
     fontWeight: FontWeight.w500,
     color: AppColors.textColorPrimary,
   );
 
   static TextStyle labelSmall = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.clip),
-    fontSize: 12.sp,
+    fontSize: 10.sp,
     fontWeight: FontWeight.normal,
     color: AppColors.textColorSecondary,
   );
@@ -74,7 +74,7 @@ class AppText {
   // Buttons
   static TextStyle button = GoogleFonts.poppins(
     textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-    fontSize: 16.sp,
+    fontSize: 13.sp,
     fontWeight: FontWeight.bold,
     color: Colors.white,
   );

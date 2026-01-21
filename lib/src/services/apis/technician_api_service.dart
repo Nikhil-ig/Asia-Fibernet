@@ -52,7 +52,7 @@ class TechnicianAPI extends BaseApiService {
   static const String _updateWireInstallation =
       "update_wire_installation_tech.php";
   static const String _technicianWorkLiveStatusUpdate =
-      "/af/api/techAPI/technician_work_live_status.php";
+      "technician_work_live_status.php";
 
   // Expense
   static const String _addExpense = "add_expenses_tech.php";
@@ -905,7 +905,7 @@ class TechnicianAPI extends BaseApiService {
   //   return false;
   // }
   Future<Map<String, dynamic>?> fetchTodayTickets() async {
-    final response = await get('fetch_customer_ticket_dashboard_today.php');
+    final response = await _apiClient.get('fetch_ticket_dashboard_today.php');
     return jsonDecode(response.body);
   }
 
@@ -918,7 +918,7 @@ class TechnicianAPI extends BaseApiService {
     required String long,
   }) async {
     try {
-      final response = await post(
+      final response = await _apiClient.post(
         'technician_work_live_status.php',
         body: {
           'ticket_no': ticketNo,
@@ -932,6 +932,66 @@ class TechnicianAPI extends BaseApiService {
       );
       return response.statusCode == 200;
     } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// ✅ Update ticket status with closure remarks (Category, Subcategory, Remark)
+  ///
+  /// Stages:
+  /// 0 = Assigned
+  /// 1 = Accept Job
+  /// 2 = On the way
+  /// 3 = Reached customer location
+  /// 4 = Work in progress
+  /// 5 = Completed
+  Future<dynamic> updateTicketWorkStatus({
+    required String ticketNo,
+    required int customerId,
+    required int currentStage,
+    required String status,
+    required String lat,
+    required String long,
+    String? closureCategory,
+    String? closureSubcategory,
+    String? closureRemark,
+  }) async {
+    try {
+      final body = {
+        'current_stage': currentStage,
+        'customer_id': customerId,
+        'ticket_no': ticketNo,
+        'status': status,
+        'lat': lat,
+        'long': long,
+      };
+
+      // ✅ Add closure details if provided
+      if (closureRemark != null && closureRemark.isNotEmpty) {
+        body['closed_remark'] = closureRemark;
+      }
+      if (closureCategory != null) {
+        body['closure_category'] = closureCategory;
+      }
+      if (closureSubcategory != null) {
+        body['closure_subcategory'] = closureSubcategory;
+      }
+
+      debugPrint('🔵 UPDATE TICKET STATUS');
+      debugPrint('Endpoint: technician_work_live_status.php');
+      debugPrint('Body: $body');
+
+      final res = await _apiClient.post(
+        _technicianWorkLiveStatusUpdate,
+        body: body,
+      );
+
+      debugPrint('Response Status: ${res.statusCode}');
+      debugPrint('Response Body: ${res.body}');
+
+      return _apiClient.handleResponse(res, (json) => json);
+    } catch (e) {
+      debugPrint('❌ Error updating ticket status: $e');
       rethrow;
     }
   }

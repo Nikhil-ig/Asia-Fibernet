@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'package:asia_fibernet/src/services/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -57,8 +58,10 @@ class BaseApiService {
     bool ignoreToken = false,
     Map<String, String>? queryParameters,
   }) async {
-    final token = await AppSharedPref.instance.getToken();
+    final token = AppSharedPref.instance.getToken(); // ✅ Not async
     final isGuest = AppSharedPref.instance.getRole() == "Guest";
+    final isValidToken =
+        token != null && token != "Guest"; // ✅ Check if valid JWT
 
     if (!ignoreToken && !isGuest && token == null) {
       unauthorized();
@@ -66,7 +69,8 @@ class BaseApiService {
     }
 
     final finalHeaders = <String, String>{
-      if (!ignoreToken && token != null) 'Authorization': 'Bearer $token',
+      // ✅ Only add Authorization header if token is valid (not empty and not "Guest")
+      if (!ignoreToken && isValidToken) 'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
       ...?headers,
     };
@@ -83,6 +87,12 @@ class BaseApiService {
     }
 
     final url = buildUrl(endpoint, queryParameters: queryParameters);
+
+    // ✅ Log token status for debugging
+    developer.log(
+      "Token Status: ${isValidToken ? '✅ Valid JWT' : '⚠️ Invalid/Missing (guest or empty)'}",
+      name: 'API_TOKEN',
+    );
 
     http.Response? response;
     int attempt = 0;
@@ -149,6 +159,12 @@ class BaseApiService {
       responseBody: response.body,
     );
 
+    if ((response.statusCode == 401 ||
+            (jsonDecode(response.body) as Map<String, dynamic>)['message'] ==
+                "Invalid token format") &&
+        !ignoreToken) {
+      unauthorized();
+    }
     return response;
   }
 
@@ -426,7 +442,7 @@ class BaseApiService {
   void unauthorized() {
     showSnackbar("Unauthorized", "Please log in again.");
     AppSharedPref.instance.clearAllUserData();
-    Get.offAllNamed('/login');
+    Get.offAllNamed(AppRoutes.login);
   }
 
   // ————————————————————————

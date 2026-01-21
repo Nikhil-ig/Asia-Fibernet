@@ -1,10 +1,12 @@
 // screens/tickets/all_tickets_screen.dart
-import 'package:asia_fibernet/src/call/call_screen.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../call/call_screen.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
 import '../../../services/sharedpref.dart';
@@ -12,6 +14,7 @@ import '../../../services/background_services/location_tracking_background_servi
 import '../../../theme/colors.dart';
 import '../../../theme/theme.dart';
 import '../../core/models/tickets_model.dart';
+import '../../core/models/ticket_closure_model.dart';
 import 'customer_detail_screen.dart';
 
 class AllTicketsController extends GetxController {
@@ -32,9 +35,20 @@ class AllTicketsController extends GetxController {
       DateTime.now().subtract(const Duration(days: 7)).obs;
   final Rx<DateTime> selectedEndDate = DateTime.now().obs;
 
+  // ✅ Ticket Closure Observables
+  final RxString selectedCategory = ''.obs;
+  final RxString selectedSubcategory = ''.obs;
+  final RxBool isSolved = true.obs;
+  final RxBool isClosing = false.obs;
+  final RxInt closureStep = 1.obs; // ✅ NEW: Track dialog step (1-4)
+
+  // ✅ API service for ticket updates
+  late TechnicianAPI technicianAPI;
+
   @override
   void onInit() {
     super.onInit();
+    technicianAPI = TechnicianAPI();
     fetchTickets();
   }
 
@@ -387,37 +401,37 @@ class AllTicketsController extends GetxController {
                     ),
                     SizedBox(height: 20),
 
-                    // ElevatedButton(
-                    //   onPressed: () async {
-                    //     // Start background location tracking when calling customer
-                    //     try {
-                    //       final ticketDate = DateFormat(
-                    //         'yyyy-MM-dd',
-                    //       ).format(DateTime.now());
-                    //       await _bgService.startTracking(
-                    //         ticketDate: ticketDate,
-                    //         intervalSeconds: 60,
-                    //       );
-                    //     } catch (e) {
-                    //       print('⚠️ Failed to start tracking: $e');
-                    //     }
+                    ElevatedButton(
+                      onPressed: () async {
+                        // Start background location tracking when calling customer
+                        try {
+                          final ticketDate = DateFormat(
+                            'yyyy-MM-dd',
+                          ).format(DateTime.now());
+                          await _bgService.startTracking(
+                            ticketDate: ticketDate,
+                            intervalSeconds: 60,
+                          );
+                        } catch (e) {
+                          print('⚠️ Failed to start tracking: $e');
+                        }
 
-                    //     Get.to(
-                    //       () => CallScreen(
-                    //         customerName:
-                    //             ticket.customerName ??
-                    //             "Unknown", // Default value if null
-                    //         customerNumber:
-                    //             ticket.customerMobileNo ??
-                    //             "Unknown", // Default value if null
-                    //       ),
-                    //     );
-                    //   },
-                    //   child: SizedBox(
-                    //     width: double.infinity,
-                    //     child: Center(child: Text("Make Call")),
-                    //   ),
-                    // ),
+                        Get.to(
+                          () => CallScreen(
+                            customerName:
+                                ticket.customerName ??
+                                "Unknown", // Default value if null
+                            customerNumber:
+                                ticket.customerMobileNo ??
+                                "Unknown", // Default value if null
+                          ),
+                        );
+                      },
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: Center(child: Text("Make Call")),
+                      ),
+                    ),
                     if (ticket.description != null)
                       _section("Issue Description", ticket.description!),
                     SizedBox(height: 16),
@@ -507,7 +521,7 @@ class AllTicketsController extends GetxController {
                                             ),
                                             SizedBox(width: 8),
                                             Text(
-                                              "Close Ticket",
+                                              "Resolved",
                                               style: AppText.button.copyWith(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w600,
@@ -1028,6 +1042,130 @@ class AllTicketsController extends GetxController {
         ],
       ),
     );
+  }
+
+  /// ✅ Get current location
+  Future<Position> getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw 'Location services are disabled.';
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw 'Location permissions are denied forever.';
+    }
+
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
+  /// ✅ Auto-advance ticket stage to next level
+  Future<void> autoAdvanceStage(
+    BuildContext context,
+    TicketModel ticket,
+  ) async {
+    try {
+      // Get current stage from ticket status
+      int currentStage = _parseStageFromStatus(ticket.status);
+
+      // If already completed (stage 5), show message
+      if (currentStage == 5) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Job already completed!')),
+        );
+        return;
+      }
+
+      // Advance to next stage (max 5)
+      final nextStage = (currentStage + 1).clamp(0, 5);
+      final nextStatus = _getStatusTextForStage(nextStage);
+
+      // Get current location
+      final position = await getCurrentLocation();
+      final lat = position.latitude.toString();
+      final long = position.longitude.toString();
+
+      // Show updating snackbar
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Updating stage...')));
+
+      debugPrint('🔵 AUTO-ADVANCE STAGE');
+      debugPrint('Ticket: ${ticket.ticketNo}');
+      debugPrint('Current Stage: $currentStage');
+      debugPrint('Next Stage: $nextStage');
+      debugPrint('Location: $lat, $long');
+
+      // Call API to update stage
+      final success = await technicianAPI.updateLiveTicketStatus(
+        ticketNo: ticket.ticketNo,
+        customerId: int.tryParse(ticket.customerId.toString()) ?? 0,
+        currentStage: nextStage,
+        status: nextStatus,
+        lat: lat,
+        long: long,
+      );
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Stage updated to: $nextStatus'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await fetchTickets(); // Refresh the list
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to update stage'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Auto-advance error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('⚠️ Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  /// ✅ Parse stage ID from status text
+  int _parseStageFromStatus(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('assigned')) return 0;
+    if (s.contains('accept')) return 1;
+    if (s.contains('way')) return 2;
+    if (s.contains('reach')) return 3;
+    if (s.contains('progress')) return 4;
+    if (s.contains('complete') || s.contains('close')) return 5;
+    return 0;
+  }
+
+  /// ✅ Get status text for stage ID
+  String _getStatusTextForStage(int stageId) {
+    switch (stageId) {
+      case 0:
+        return 'Assigned';
+      case 1:
+        return 'Accept Job';
+      case 2:
+        return 'On the way';
+      case 3:
+        return 'Reached customer location';
+      case 4:
+        return 'Work in progress';
+      case 5:
+        return 'Completed';
+      default:
+        return 'Unknown';
+    }
   }
 }
 
@@ -1916,6 +2054,24 @@ class AllTicketsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                // ✅ Close Ticket Button
+                // SizedBox(height: 12),
+                // SizedBox(
+                //   width: double.infinity,
+                //   child: ElevatedButton.icon(
+                //     onPressed: () => _showTicketClosureDialog(context, ticket),
+                //     icon: Icon(Iconsax.tick_circle),
+                //     label: Text('Close Ticket'),
+                //     style: ElevatedButton.styleFrom(
+                //       backgroundColor: AppColors.success,
+                //       foregroundColor: Colors.white,
+                //       padding: EdgeInsets.symmetric(vertical: 10),
+                //       shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(8),
+                //       ),
+                //     ),
+                //   ),
+                // ),
               ],
             ],
           ),
@@ -3396,5 +3552,1093 @@ class AllTicketsScreen extends StatelessWidget {
       return Iconsax.tick_circle;
     }
     return Iconsax.info_circle;
+  }
+
+  /// ✅ Get status color for widget (for displaying ticket data)
+  Color _getStatusColorForWidget(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('open')) return AppColors.warning;
+    if (s.contains('assign')) return AppColors.info;
+    if (s.contains('close') ||
+        s.contains('resolve') ||
+        s.contains('complete')) {
+      return AppColors.success;
+    }
+    return AppColors.textColorSecondary;
+  }
+
+  /// ✅ Show ticket closure dialog with step-by-step wizard
+  void _showTicketClosureDialog(BuildContext context, TicketModel ticket) {
+    final controller = Get.find<AllTicketsController>();
+
+    // Initialize state
+    controller.selectedCategory.value = '';
+    controller.selectedSubcategory.value = '';
+    controller.remarkCtrl.clear();
+    controller.isSolved.value = true;
+    controller.isClosing.value = false;
+    controller.closureStep.value = 1; // Start at step 1
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: Obx(
+              () => Row(
+                children: [
+                  Text('Close Ticket', style: AppText.headingSmall),
+                  SizedBox(width: 12),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Step ${controller.closureStep.value}/4',
+                      style: AppText.labelSmall.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Obx(
+                () => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ============ STEP 1: Original Complaint Category ============
+                    if (controller.closureStep.value == 1) ...[
+                      Text(
+                        'Original Complaint Category',
+                        style: AppText.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          border: Border.all(
+                            color: AppColors.primary,
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Category:',
+                              style: AppText.labelSmall.copyWith(
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              ticket.category ?? 'Not specified',
+                              style: AppText.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'Sub-Category:',
+                              style: AppText.labelSmall.copyWith(
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              ticket.subCategory ?? 'Not specified',
+                              style: AppText.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              'Description:',
+                              style: AppText.labelSmall.copyWith(
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              ticket.description ?? 'Not specified',
+                              style: AppText.bodyMedium.copyWith(
+                                color: AppColors.textColorPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Iconsax.info_circle,
+                              color: Colors.blue,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Select closure category below',
+                                style: AppText.labelSmall.copyWith(
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ============ STEP 2: Select Closure Category & Subcategory ============
+                    if (controller.closureStep.value == 2) ...[
+                      Text(
+                        'Select Closure Category *',
+                        style: AppText.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color:
+                                controller.selectedCategory.isEmpty
+                                    ? Colors.grey.shade300
+                                    : AppColors.primary,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          underline: SizedBox(),
+                          value:
+                              controller.selectedCategory.isEmpty
+                                  ? null
+                                  : controller.selectedCategory.value,
+                          hint: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('Choose category...'),
+                          ),
+                          items:
+                              TicketClosureOptions.categories.keys
+                                  .map(
+                                    (cat) => DropdownMenuItem(
+                                      value: cat,
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        ),
+                                        child: Text(cat),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              controller.selectedCategory.value = value;
+                              controller.selectedSubcategory.value = '';
+                            }
+                          },
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Visibility(
+                        visible: controller.selectedCategory.isNotEmpty,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Select Issue Type *',
+                              style: AppText.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color:
+                                      controller.selectedSubcategory.isEmpty
+                                          ? Colors.grey.shade300
+                                          : AppColors.primary,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                underline: SizedBox(),
+                                value:
+                                    controller.selectedSubcategory.isEmpty
+                                        ? null
+                                        : controller.selectedSubcategory.value,
+                                hint: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text('Choose type...'),
+                                ),
+                                items:
+                                    (TicketClosureOptions.categories[controller
+                                                .selectedCategory
+                                                .value] ??
+                                            [])
+                                        .map(
+                                          (subcat) => DropdownMenuItem(
+                                            value: subcat,
+                                            child: Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                              ),
+                                              child: Text(subcat),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    controller.selectedSubcategory.value =
+                                        value;
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // ============ STEP 3: Enter Closure Remarks ============
+                    if (controller.closureStep.value == 3) ...[
+                      Text(
+                        'Enter Closure Remarks *',
+                        style: AppText.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Category: ${controller.selectedCategory.value}',
+                        style: AppText.labelSmall.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Type: ${controller.selectedSubcategory.value}',
+                        style: AppText.labelSmall.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      TextField(
+                        controller: controller.remarkCtrl,
+                        maxLines: 4,
+                        minLines: 4,
+                        decoration: InputDecoration(
+                          hintText:
+                              'Describe what you did to resolve this issue...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.all(12),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                      ),
+                    ],
+
+                    // ============ STEP 4: Final - Issue Solved & Reassign ============
+                    if (controller.closureStep.value == 4) ...[
+                      Text(
+                        'Is Issue Solved?',
+                        style: AppText.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color:
+                              controller.isSolved.value
+                                  ? AppColors.success.withOpacity(0.1)
+                                  : AppColors.warning.withOpacity(0.1),
+                          border: Border.all(
+                            color:
+                                controller.isSolved.value
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  controller.isSolved.value
+                                      ? '✓ YES - Close as Completed'
+                                      : '✗ NO - Reassign Ticket',
+                                  style: AppText.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        controller.isSolved.value
+                                            ? AppColors.success
+                                            : AppColors.warning,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  controller.isSolved.value
+                                      ? 'Mark ticket as completed'
+                                      : 'Send to another technician',
+                                  style: AppText.labelSmall.copyWith(
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            CupertinoSwitch(
+                              value: controller.isSolved.value,
+                              onChanged:
+                                  (val) => controller.isSolved.value = val,
+                              activeColor: AppColors.success,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Summary:',
+                              style: AppText.bodySmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Category: ${controller.selectedCategory.value}',
+                              style: AppText.labelSmall,
+                            ),
+                            Text(
+                              'Type: ${controller.selectedSubcategory.value}',
+                              style: AppText.labelSmall,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Stage: ${controller.isSolved.value ? '5 - Completed' : '4 - Work in Progress/Reassign'}',
+                              style: AppText.labelSmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    controller.isSolved.value
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ),
+              Obx(
+                () => TextButton(
+                  onPressed:
+                      controller.closureStep.value == 1
+                          ? () => controller.closureStep.value = 2
+                          : (controller.closureStep.value == 2 &&
+                              controller.selectedCategory.isNotEmpty &&
+                              controller.selectedSubcategory.isNotEmpty)
+                          ? () => controller.closureStep.value = 3
+                          : (controller.closureStep.value == 3 &&
+                              controller.remarkCtrl.text.trim().isNotEmpty)
+                          ? () => controller.closureStep.value = 4
+                          : null,
+                  child: Text(
+                    controller.closureStep.value < 4 ? 'Next' : 'Confirm',
+                    style: TextStyle(
+                      color:
+                          controller.closureStep.value < 4
+                              ? (controller.closureStep.value == 2 &&
+                                      (controller.selectedCategory.isEmpty ||
+                                          controller
+                                              .selectedSubcategory
+                                              .isEmpty))
+                                  ? Colors.grey
+                                  : (controller.closureStep.value == 3 &&
+                                      controller.remarkCtrl.text.trim().isEmpty)
+                                  ? Colors.grey
+                                  : AppColors.primary
+                              : AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              Obx(
+                () => ElevatedButton.icon(
+                  onPressed:
+                      controller.isClosing.value ||
+                              controller.closureStep.value != 4
+                          ? null
+                          : () =>
+                              _submitTicketClosure(context, ticket, controller),
+                  icon:
+                      controller.isClosing.value
+                          ? SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : Icon(Iconsax.tick_circle),
+                  label: Text(
+                    controller.isClosing.value ? 'Closing...' : 'Submit',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        controller.isSolved.value
+                            ? AppColors.success
+                            : AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  /// ✅ Submit ticket closure with API call
+  Future<void> _submitTicketClosure(
+    BuildContext context,
+    TicketModel ticket,
+    AllTicketsController controller,
+  ) async {
+    // ✅ Validation
+    if (controller.selectedCategory.isEmpty) {
+      BaseApiService().showSnackbar('Error', 'Please select a category');
+      return;
+    }
+    if (controller.selectedSubcategory.isEmpty) {
+      BaseApiService().showSnackbar('Error', 'Please select an issue type');
+      return;
+    }
+    if (controller.remarkCtrl.text.trim().isEmpty) {
+      BaseApiService().showSnackbar('Error', 'Please enter closure remarks');
+      return;
+    }
+
+    controller.isClosing.value = true;
+
+    try {
+      // ✅ Prepare closure remark with category + subcategory
+      final closureRemark =
+          '${controller.selectedCategory.value} > ${controller.selectedSubcategory.value}: ${controller.remarkCtrl.text.trim()}';
+
+      // ✅ Determine status based on issue solved toggle
+      final status = controller.isSolved.value ? 'Completed' : 'Reassigned';
+      final currentStage = controller.isSolved.value ? 5 : 4;
+
+      // 📍 Get current location
+      final position = await controller.getCurrentLocation();
+
+      debugPrint('🟢 SUBMITTING TICKET CLOSURE');
+      debugPrint('Ticket No: ${ticket.ticketNo}');
+      debugPrint('Category: ${controller.selectedCategory.value}');
+      debugPrint('Subcategory: ${controller.selectedSubcategory.value}');
+      debugPrint('Status: $status');
+      debugPrint('Stage: $currentStage');
+      debugPrint('Location: ${position.latitude}, ${position.longitude}');
+
+      // ✅ Call API
+      final result = await controller.technicianAPI.updateTicketWorkStatus(
+        ticketNo: ticket.ticketNo,
+        customerId: int.tryParse(ticket.customerId.toString()) ?? 0,
+        currentStage: currentStage,
+        status: status,
+        lat: position.latitude.toString(),
+        long: position.longitude.toString(),
+        closureCategory: controller.selectedCategory.value,
+        closureSubcategory: controller.selectedSubcategory.value,
+        closureRemark: closureRemark,
+      );
+
+      debugPrint('API Response: $result');
+
+      if (result != null && result is Map<String, dynamic>) {
+        final apiStatus = result['status'] ?? '';
+        if (apiStatus == 'success' ||
+            apiStatus == '1' ||
+            result['code'] == 200) {
+          BaseApiService().showSnackbar(
+            'Success',
+            controller.isSolved.value
+                ? 'Ticket closed successfully! ✓'
+                : 'Ticket reassigned successfully! 📤',
+            isError: false,
+          );
+
+          // ✅ Close dialog and refresh tickets
+          Navigator.pop(context);
+          await Future.delayed(Duration(milliseconds: 300));
+          await controller.fetchTickets();
+
+          // ✅ Optional: Navigate to ticket details to show update
+          if (context.mounted && controller.isSolved.value) {
+            Navigator.pop(context);
+          }
+        } else {
+          BaseApiService().showSnackbar(
+            'Error',
+            result['message'] ?? 'Failed to update ticket status',
+          );
+        }
+      } else {
+        BaseApiService().showSnackbar('Error', 'Invalid API response');
+      }
+    } catch (e) {
+      debugPrint('❌ Error closing ticket: $e');
+      BaseApiService().showSnackbar('Error', 'Error: ${e.toString()}');
+    } finally {
+      controller.isClosing.value = false;
+    }
+  }
+
+  /// ✅ Display API Response Ticket Data
+  /// Shows ticket data from API response in a beautiful detail sheet
+  void showApiResponseTicketData(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
+    // Convert API response to TicketModel
+    final ticket = TicketModel.fromJson(data);
+
+    Get.bottomSheet(
+      ignoreSafeArea: true,
+      _buildApiResponseTicketDetails(context, ticket, data),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    );
+  }
+
+  /// ✅ Build API Response Ticket Details UI
+  Widget _buildApiResponseTicketDetails(
+    BuildContext context,
+    TicketModel ticket,
+    Map<String, dynamic> rawData,
+  ) {
+    return Container(
+      constraints: BoxConstraints(maxHeight: Get.size.height * .90),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(Get.context!).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ===== HEADER =====
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Ticket Details",
+                        style: AppText.headingMedium.copyWith(
+                          color: AppColors.textColorPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        ticket.ticketNo,
+                        style: AppText.labelMedium.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Iconsax.close_circle,
+                      color: AppColors.textColorSecondary,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ===== MAIN INFO CARD =====
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Status Row
+                          _apiDetailRow(
+                            Iconsax.status,
+                            "Status",
+                            ticket.status,
+                            valueColor: _getStatusColorForWidget(ticket.status),
+                          ),
+                          SizedBox(height: 12),
+                          // Priority Row
+                          if (ticket.priority != null)
+                            _apiDetailRow(
+                              Iconsax.flag,
+                              "Priority",
+                              ticket.priority ?? 'N/A',
+                              valueColor: _getPriorityColor(ticket.priority),
+                            ),
+                          if (ticket.priority != null) SizedBox(height: 12),
+                          // Category Row
+                          if (ticket.category != null)
+                            _apiDetailRow(
+                              Iconsax.category,
+                              "Category",
+                              ticket.category ?? 'N/A',
+                            ),
+                          if (ticket.category != null) SizedBox(height: 12),
+                          // Sub-Category Row
+                          if (ticket.subCategory != null)
+                            _apiDetailRow(
+                              Iconsax.bookmark,
+                              "Sub-Category",
+                              ticket.subCategory ?? 'N/A',
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // ===== DESCRIPTION CARD =====
+                    if (ticket.description != null &&
+                        ticket.description!.isNotEmpty)
+                      Container(
+                        padding: EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.3),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Iconsax.note,
+                                  size: 18,
+                                  color: Colors.blue.shade700,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Description",
+                                  style: AppText.bodySmall.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              ticket.description ?? 'N/A',
+                              style: AppText.bodySmall.copyWith(
+                                color: AppColors.textColorPrimary,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    SizedBox(height: 16),
+
+                    // ===== TECHNICIAN INFO CARD =====
+                    Container(
+                      padding: EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.purple.withOpacity(0.3),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _apiDetailRow(
+                            Iconsax.user_octagon,
+                            "Technician",
+                            ticket.technicianName ?? 'Not assigned',
+                          ),
+                          if (ticket.technicianId != null) ...[
+                            SizedBox(height: 10),
+                            _apiDetailRow(
+                              Iconsax.user,
+                              "Tech ID",
+                              ticket.technicianId.toString(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // ===== TIMELINE CARD =====
+                    Container(
+                      padding: EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _apiDetailRow(
+                            Iconsax.calendar_add,
+                            "Created",
+                            _formatFullDateTime(ticket.createdAt),
+                          ),
+                          SizedBox(height: 10),
+                          _apiDetailRow(
+                            Iconsax.refresh,
+                            "Updated",
+                            _formatFullDateTime(
+                              ticket.updatedAt ?? ticket.createdAt,
+                            ),
+                          ),
+                          if (ticket.closedAt != null &&
+                              ticket.closedAt!.isNotEmpty) ...[
+                            SizedBox(height: 10),
+                            _apiDetailRow(
+                              Iconsax.tick_circle,
+                              "Closed",
+                              _formatFullDateTime(ticket.closedAt!),
+                              valueColor: AppColors.success,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 16),
+
+                    // ===== CLOSURE REMARKS CARD =====
+                    if (ticket.closedRemark != null &&
+                        ticket.closedRemark!.isNotEmpty)
+                      Container(
+                        padding: EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withOpacity(0.3),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Iconsax.tick_circle,
+                                  size: 18,
+                                  color: AppColors.success,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Closure Remark",
+                                  style: AppText.bodySmall.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              ticket.closedRemark ?? 'N/A',
+                              style: AppText.bodySmall.copyWith(
+                                color: AppColors.textColorPrimary,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    SizedBox(height: 16),
+
+                    // ===== JSON RAW DATA (Debug) =====
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Raw API Data",
+                            style: AppText.labelSmall.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Container(
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: SelectableText(
+                              _prettyPrintJson(rawData),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    // ===== ACTION BUTTONS =====
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pop(context),
+                            icon: Icon(Iconsax.close_circle),
+                            label: Text('Close'),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              // Copy JSON to clipboard
+                              final jsonString = _prettyPrintJson(rawData);
+                              // You can use: Clipboard.setData(ClipboardData(text: jsonString));
+                              BaseApiService().showSnackbar(
+                                'Info',
+                                'API Response copied (check debug console)',
+                                isError: false,
+                              );
+                              debugPrint(jsonString);
+                            },
+                            icon: Icon(Iconsax.copy),
+                            label: Text('Copy JSON'),
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              backgroundColor: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ✅ Helper: API Detail Row
+  Widget _apiDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: valueColor ?? AppColors.primary),
+        SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppText.labelSmall.copyWith(
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                value,
+                style: AppText.bodySmall.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: valueColor ?? AppColors.textColorPrimary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ✅ Helper: Format DateTime
+  String _formatFullDateTime(String dateTimeStr) {
+    try {
+      final dt = DateTime.parse(dateTimeStr);
+      return DateFormat('dd MMM, yyyy • hh:mm a').format(dt);
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+
+  /// ✅ Helper: Get Priority Color
+  Color _getPriorityColor(String? priority) {
+    if (priority == null) return Colors.grey;
+    final p = priority.toLowerCase();
+    if (p == 'high') return Colors.red;
+    if (p == 'medium') return Colors.orange;
+    if (p == 'low') return Colors.green;
+    return Colors.grey;
+  }
+
+  /// ✅ Helper: Pretty Print JSON
+  String _prettyPrintJson(Map<String, dynamic> json) {
+    final buffer = StringBuffer();
+    _printJsonValue(json, buffer, 0);
+    return buffer.toString();
+  }
+
+  void _printJsonValue(dynamic value, StringBuffer buffer, int indent) {
+    final indentStr = '  ' * indent;
+    if (value is Map) {
+      buffer.write('{\n');
+      final entries = value.entries.toList();
+      for (int i = 0; i < entries.length; i++) {
+        final entry = entries[i];
+        buffer.write('$indentStr  "${entry.key}": ');
+        _printJsonValue(entry.value, buffer, indent + 1);
+        if (i < entries.length - 1) buffer.write(',');
+        buffer.write('\n');
+      }
+      buffer.write('$indentStr}');
+    } else if (value is List) {
+      buffer.write('[\n');
+      for (int i = 0; i < value.length; i++) {
+        buffer.write('$indentStr  ');
+        _printJsonValue(value[i], buffer, indent + 1);
+        if (i < value.length - 1) buffer.write(',');
+        buffer.write('\n');
+      }
+      buffer.write('$indentStr]');
+    } else if (value is String) {
+      buffer.write('"$value"');
+    } else if (value == null) {
+      buffer.write('null');
+    } else {
+      buffer.write(value);
+    }
   }
 }

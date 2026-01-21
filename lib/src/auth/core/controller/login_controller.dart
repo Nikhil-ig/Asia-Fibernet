@@ -4,13 +4,22 @@ import 'package:asia_fibernet/src/services/sharedpref.dart';
 
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
-// Import your ApiServices
+import 'package:flutter/services.dart';
+import 'dart:async';
 import '../../../services/apis/base_api_service.dart';
 import '../model/verify_mobile_model.dart';
 import '../../../services/apis/api_services.dart';
 // Import OTP Screen
 import '../../ui/otp_screen.dart';
 import 'binding/otp_binding.dart';
+
+/// ⚠️ DEBUG MODE CONFIGURATION
+/// Set this to true ONLY during development/testing to bypass OTP verification
+/// IMPORTANT: Set to false before production release!
+const bool kDebugModeBypassOTP = true;
+
+/// Debug phone number to automatically trigger skip OTP
+const String kDebugPhoneNumber = '7877851728';
 
 class LoginController extends GetxController
     with GetSingleTickerProviderStateMixin {
@@ -24,9 +33,7 @@ class LoginController extends GetxController
       Get.find<ApiServices>(); // ✅ Get the registered instance
   final BaseApiService _baseApiService = BaseApiService(BaseApiService.api);
 
-  final phoneController = TextEditingController(
-    text: AppSharedPref.instance.getMobileNumber(),
-  );
+  late TextEditingController phoneController;
   // late AnimationController _animationController;
   // late Animation<double> logoAnimation;
   // late Animation<double> textAnimation;
@@ -35,29 +42,137 @@ class LoginController extends GetxController
   // ✅ Add a loading state observable
   final RxBool isLoading = false.obs;
 
-  // @override
-  // void onInit() {
-  //   super.onInit();
-  //   // _animationController = AnimationController(
-  //   //   duration: Duration(milliseconds: 1000),
-  //   //   vsync: this, // Requires GetSingleTickerProviderStateMixin
-  //   // );
-  //   // // Define curves for different timings if needed
-  //   // logoAnimation = CurvedAnimation(
-  //   //   parent: _animationController,
-  //   //   curve: Curves.easeOut,
-  //   // );
-  //   // textAnimation = CurvedAnimation(
-  //   //   parent: _animationController,
-  //   //   curve: Curves.easeInOut,
-  //   // );
-  //   // cardAnimation = CurvedAnimation(
-  //   //   parent: _animationController,
-  //   //   curve: Curves.easeInOut,
-  //   // );
-  //   // // Start the animation
-  //   // _animationController.forward();
-  // }
+  // ✅ Clipboard monitoring for phone number auto-fill
+  String? _lastClipboardContent;
+  bool _shouldIgnoreNextPhoneNumber =
+      false; // Changed: auto-detect on load counts as first
+  Timer? _clipboardCheckTimer;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // ✅ Initialize phoneController here instead of as a field
+    phoneController = TextEditingController(
+      text: AppSharedPref.instance.getMobileNumber() ?? '',
+    );
+    // ✅ Start monitoring clipboard for phone numbers
+    _startClipboardMonitoring();
+    // ✅ Auto-detect phone number from clipboard on screen load
+    _autoDetectPhoneOnLoad();
+  }
+
+  /// ✅ Auto-detect phone number from clipboard when screen loads
+  Future<void> _autoDetectPhoneOnLoad() async {
+    try {
+      // Wait a bit for the screen to render first
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final ClipboardData? data = await Clipboard.getData('text/plain');
+      final clipboardText = data?.text?.trim() ?? '';
+
+      if (clipboardText.isNotEmpty) {
+        // Extract only digits from clipboard
+        final phoneDigits = clipboardText.replaceAll(RegExp(r'[^0-9]'), '');
+
+        // Check if it's a valid 10-digit phone number
+        if (phoneDigits.length == 10 &&
+            phoneDigits.startsWith(RegExp(r'[6-9]'))) {
+          print('🔍 Auto-detected phone on load: $phoneDigits');
+
+          // Set the phone number using helper method
+          _setPhoneNumber(phoneDigits);
+
+          // Show snackbar only if context/overlay is available
+          try {
+            _baseApiService.showSnackbar(
+              "Phone Number Detected",
+              "Your phone number has been auto-detected from clipboard.",
+            );
+          } catch (e) {
+            print("Could not show snackbar: $e");
+          }
+        }
+      }
+    } catch (e) {
+      print("Could not auto-detect phone on load: $e");
+    }
+  }
+
+  /// ✅ Helper method to safely set phone number in controller
+  void _setPhoneNumber(String phoneNumber) {
+    try {
+      // Clear the controller
+      phoneController.clear();
+
+      // Wait a frame to ensure clear is processed
+      Future.delayed(const Duration(milliseconds: 10), () {
+        // Set the new value
+        phoneController.text = phoneNumber;
+
+        // Ensure cursor is at the end
+        if (phoneController.text.length == 10) {
+          phoneController.selection = TextSelection.fromPosition(
+            TextPosition(offset: phoneNumber.length),
+          );
+        }
+
+        print('✅ Phone set successfully: ${phoneController.text}');
+        print('✅ Phone length: ${phoneController.text.length}');
+      });
+    } catch (e) {
+      print('❌ Error setting phone: $e');
+    }
+  }
+
+  /// ✅ Monitor clipboard every 500ms for phone numbers
+  void _startClipboardMonitoring() {
+    _clipboardCheckTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      _,
+    ) async {
+      try {
+        final ClipboardData? data = await Clipboard.getData('text/plain');
+        final clipboardText = data?.text?.trim() ?? '';
+
+        // Check if clipboard content changed
+        if (clipboardText != _lastClipboardContent &&
+            clipboardText.isNotEmpty) {
+          _lastClipboardContent = clipboardText;
+
+          // Extract only digits from clipboard
+          final phoneDigits = clipboardText.replaceAll(RegExp(r'[^0-9]'), '');
+
+          // Check if it's a valid 10-digit phone number
+          if (phoneDigits.length == 10 &&
+              phoneDigits.startsWith(RegExp(r'[6-9]'))) {
+            // Auto-detect counts as first, so directly fill on subsequent copies
+            if (!_shouldIgnoreNextPhoneNumber) {
+              // Auto-fill the phone number using the helper method
+              _setPhoneNumber(phoneDigits);
+
+              print('✅ Clipboard changed - Auto-filling: $phoneDigits');
+
+              // Show snackbar only if context/overlay is available
+              try {
+                _baseApiService.showSnackbar(
+                  "Phone Number Auto-Filled",
+                  "Your phone number has been updated from clipboard.",
+                );
+              } catch (e) {
+                print("Could not show snackbar: $e");
+              }
+            } else {
+              // Mark that we've seen a copy
+              _shouldIgnoreNextPhoneNumber = false;
+              print('📋 First copy detected: $phoneDigits');
+            }
+          }
+        }
+      } catch (e) {
+        // Silently fail if clipboard access fails
+        print("Could not access clipboard: $e");
+      }
+    });
+  }
 
   // Inside LoginController class
 
@@ -80,13 +195,24 @@ class LoginController extends GetxController
       print("Attempting to verify mobile: $phoneNumber");
 
       final verifyResponse = await _apiService.mobileVerification(phoneNumber);
-      await _apiService.generateOTP(phoneNumber);
+      final otpResponse = await _apiService.generateOTP(phoneNumber);
 
       if (verifyResponse == null) {
-        // _baseApiService.showSnackbar(
-        //   "Network Error",
-        //   "Could not connect. Please check your internet connection.",
-        // );
+        _baseApiService.showSnackbar(
+          "Network Error",
+          "Could not connect. Please check your internet connection.",
+        );
+        return;
+      }
+
+      // Check if OTP generation failed
+      if (otpResponse != null && otpResponse.status == "error") {
+        _baseApiService.showSnackbar(
+          "Error",
+          otpResponse.message.isNotEmpty
+              ? otpResponse.message
+              : "Unable to send OTP. Please try again.",
+        );
         return;
       }
 
@@ -103,6 +229,31 @@ class LoginController extends GetxController
         print(
           "Token: '$token'",
         ); // Print with quotes to see empty string clearly
+
+        // ⚠️ DEBUG MODE: Bypass OTP if debug flag is enabled and phone matches
+        if (kDebugModeBypassOTP && phoneNumber == kDebugPhoneNumber) {
+          print("🔧 DEBUG MODE: Bypassing OTP verification for $phoneNumber");
+          // Save token and user data
+          await AppSharedPref.instance.setToken(token);
+          await AppSharedPref.instance.setUserID(userId);
+          await AppSharedPref.instance.setMobileNumber(phoneNumber);
+          await AppSharedPref.instance.setRole(role.toString().split('.').last);
+          await AppSharedPref.instance.setVerificationStatus(true);
+
+          print("✅ User logged in directly (DEBUG MODE)");
+          _baseApiService.showSnackbar(
+            "Debug Mode",
+            "Logged in directly (OTP bypassed for testing)",
+          );
+
+          // Navigate based on role
+          if (role == "technician") {
+            Get.offAllNamed('/technician-dashboard');
+          } else {
+            Get.offAllNamed('/home');
+          }
+          return;
+        }
 
         // --- Key Change: Check for Guest/Unregistered ---
         // Define conditions for being a "Guest" or unregistered user.
@@ -214,7 +365,14 @@ class LoginController extends GetxController
         }
       } else {
         // API returned status != "success"
-        _baseApiService.showSnackbar("Login Failed", verifyResponse.message);
+        print("❌ Verification failed with status: ${verifyResponse.status}");
+        print("Error message: ${verifyResponse.message}");
+        _baseApiService.showSnackbar(
+          "Verification Failed",
+          verifyResponse.message.isNotEmpty
+              ? verifyResponse.message
+              : "Unable to verify mobile number. Please try again.",
+        );
       }
     } catch (e) {
       print("Exception during login: $e");
@@ -229,8 +387,10 @@ class LoginController extends GetxController
 
   @override
   void onClose() {
-    // _animationController.dispose();
-    phoneController.dispose();
+    // ✅ Stop clipboard monitoring
+    _clipboardCheckTimer?.cancel();
+    // ⚠️ Don't dispose phoneController here as it may still be in use
+    // The framework will handle cleanup when needed
     super.onClose();
   }
 }

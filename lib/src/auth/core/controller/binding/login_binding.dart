@@ -7,8 +7,12 @@ import '../login_controller.dart';
 class LoginBinding implements Bindings {
   @override
   void dependencies() {
-    // Use Get.lazyPut for lazy initialization (controller created when first needed)
-    Get.lazyPut<LoginController>(() => LoginController());
+    // Use Get.lazyPut with permanent: true to prevent disposal on route change
+    // This prevents "TextEditingController used after dispose" errors
+    Get.lazyPut<LoginController>(
+      () => LoginController(),
+      fenix: true, // Recreates the controller if it was deleted
+    );
     Get.lazyPut<ApiServices>(() => ApiServices());
   }
 }

@@ -77,13 +77,27 @@ class CategoryData {
 class SubCategory {
   final int subcategoryId;
   final String subcategoryName;
+  final List<String> descriptions; // NEW: List of descriptions
 
-  SubCategory({required this.subcategoryId, required this.subcategoryName});
+  SubCategory({
+    required this.subcategoryId,
+    required this.subcategoryName,
+    this.descriptions = const [],
+  });
 
   factory SubCategory.fromJson(Map<String, dynamic> json) {
+    List<String> descList = [];
+    if (json['descriptions'] is List) {
+      descList =
+          (json['descriptions'] as List)
+              .map((item) => item.toString())
+              .toList();
+    }
+
     return SubCategory(
       subcategoryId: json['subcategory_id'] as int,
       subcategoryName: json['subcategory_name'] as String,
+      descriptions: descList,
     );
   }
 
@@ -91,6 +105,7 @@ class SubCategory {
     return {
       'subcategory_id': subcategoryId,
       'subcategory_name': subcategoryName,
+      'descriptions': descriptions,
     };
   }
 }

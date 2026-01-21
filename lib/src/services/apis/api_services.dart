@@ -1,4 +1,5 @@
 // services/api_services.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 // import 'package:flutter/cupertino.dart';
@@ -101,7 +102,7 @@ class ApiServices {
     final body = {
       "mobile": phoneNumber,
       "action": resend! ? "resend" : "send",
-      "is_whatsapp": isWhatsApp! ? "whatsapp" : "text",
+      "gateway": isWhatsApp! ? "whatsapp" : "text",
     };
     try {
       final res = await _apiClient.post(
@@ -691,12 +692,67 @@ class ApiServices {
   }
 
   Future<Map<String, dynamic>?> fcmToken() async {
-    final body = {'fcm_token': AppSharedPref.instance.getFCMToken()};
     try {
-      final res = await _apiClient.post(_fcmToken, body: body);
-      return _apiClient.handleResponse(res, (json) => json);
+      // 📱 Get FCM token from SharedPreferences (it's now async)
+      final fcmTokenValue = await AppSharedPref.instance.getFCMToken();
+      
+      if (fcmTokenValue == null || fcmTokenValue.isEmpty) {
+        developer.log(
+          'FCM token is null or empty - skipping upload',
+          name: 'ApiServices.fcmToken',
+        );
+        return {'status': 'skipped', 'reason': 'FCM token not available'};
+      }
+      
+      final body = {'fcm_token': fcmTokenValue};
+      
+      // Retry logic for better reliability in release builds
+      http.Response? res;
+      int retries = 0;
+      const maxRetries = 2;
+      
+      while (retries < maxRetries) {
+        try {
+          res = await _apiClient.post(_fcmToken, body: body).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('FCM token upload timeout');
+            },
+          );
+          break; // Success, exit retry loop
+        } catch (e) {
+          retries++;
+          if (retries >= maxRetries) {
+            rethrow;
+          }
+          // Wait before retry
+          await Future.delayed(Duration(milliseconds: 500 * retries));
+        }
+      }
+      
+      if (res == null) {
+        developer.log(
+          'FCM token upload failed - null response',
+          name: 'ApiServices.fcmToken',
+        );
+        return null;
+      }
+
+      final response = _apiClient.handleResponse(res, (json) => json);
+      if (response != null) {
+        developer.log(
+          'FCM token uploaded successfully: $response',
+          name: 'ApiServices.fcmToken',
+        );
+      }
+      return response;
     } catch (e) {
-      if (e.toString().contains('Unauthorized: No token')) return null;
+      developer.log(
+        'Error uploading FCM token: $e',
+        name: 'ApiServices.fcmToken',
+        error: e,
+      );
+      // Don't throw, just log and return null - FCM upload shouldn't block login
       return null;
     }
   }
@@ -978,28 +1034,38 @@ class ApiServices {
   // }
 
   void handleLogout() async {
-    String? token = await _sharedPref.getToken();
+    String? token = _sharedPref.getToken(); // ✅ Not async - removed await
     try {
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         final success = await logOut(token);
         if (success) {
-          final cleared = await _sharedPref.clearAllUserData();
-          if (cleared) {
-            developer.log("Logout successful and user data cleared.");
-          } else {
-            developer.log("Logout successful but failed to clear user data.");
-            // BaseApiService().showSnackbar("Warning", "Could not clear local data.");
-          }
+          developer.log("✅ Logout API call successful");
         } else {
-          // BaseApiService().showSnackbar("Error", "Failed to log out. Please try again.");
+          developer.log(
+            "⚠️ Logout API call failed, but clearing local data anyway",
+          );
         }
       } else {
-        await _sharedPref.clearAllUserData();
+        developer.log("ℹ️ No token to logout from API, clearing local data");
       }
     } catch (e) {
-      await _sharedPref.clearAllUserData();
+      developer.log("❌ Error during logout: $e");
     } finally {
-      await _sharedPref.clearAllUserData();
+      // ✅ Always clear user data and navigate to login
+      final cleared = await _sharedPref.clearAllUserData();
+      if (cleared) {
+        developer.log("✅ User data cleared successfully");
+      } else {
+        developer.log("⚠️ Failed to clear user data");
+      }
+
+      // ✅ Navigate to login screen and clear navigation stack
+      Get.offAllNamed('/login');
+
+      BaseApiService().showSnackbar(
+        "Logged Out",
+        "You have been logged out successfully.",
+      );
     }
   }
 

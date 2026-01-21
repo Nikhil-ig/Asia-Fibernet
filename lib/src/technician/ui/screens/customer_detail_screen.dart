@@ -11,6 +11,7 @@ import '../../../services/apis/api_services.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
 import '../../../theme/colors.dart';
+import '../../../theme/theme.dart';
 
 class CustomerDetailsController extends GetxController {
   final TechnicianAPI apiService = TechnicianAPI();
@@ -24,11 +25,21 @@ class CustomerDetailsController extends GetxController {
   final isCreatingTicket = false.obs;
   final ticketImage = Rx<File?>(null);
 
+  // ✅ For customer details update
+  final isUpdatingDetails = false.obs;
+  late TextEditingController emailController;
+  late TextEditingController addressController;
+  bool _isDisposed = false;
+
   int? _customerId;
 
   @override
   void onInit() {
     super.onInit();
+    _isDisposed = false;
+    emailController = TextEditingController();
+    addressController = TextEditingController();
+
     final args = Get.arguments;
     if (args is Map && args['customerId'] is int) {
       _customerId = args['customerId'];
@@ -42,6 +53,18 @@ class CustomerDetailsController extends GetxController {
       );
       Get.back();
     }
+  }
+
+  @override
+  void onClose() {
+    _isDisposed = true;
+    try {
+      emailController.dispose();
+    } catch (_) {}
+    try {
+      addressController.dispose();
+    } catch (_) {}
+    super.onClose();
   }
 
   Future<void> fetchFindCustomerDetail() async {
@@ -127,10 +150,224 @@ class CustomerDetailsController extends GetxController {
   void clearTicketImage() {
     ticketImage.value = null;
   }
+
+  /// ✅ Update customer email and address
+  Future<void> updateCustomerDetails() async {
+    if (_customerId == null) return;
+
+    final email = emailController.text.trim();
+    final address = addressController.text.trim();
+
+    if (email.isEmpty && address.isEmpty) {
+      BaseApiService().showSnackbar(
+        "Validation Error",
+        "Please fill at least one field",
+      );
+      return;
+    }
+
+    try {
+      isUpdatingDetails.value = true;
+
+      // Prepare update data
+      final updateData = <String, dynamic>{"customer_id": _customerId};
+
+      if (email.isNotEmpty) updateData["email"] = email;
+      if (address.isNotEmpty) updateData["address"] = address;
+
+      // Call API using BaseApiService
+      final apiResponse = await BaseApiService(
+        BaseApiService.api,
+      ).post("edit_customer_details.php", body: updateData);
+
+      if (apiResponse.statusCode == 200) {
+        // Refresh customer details from API
+        await fetchFindCustomerDetail();
+
+        BaseApiService().showSnackbar(
+          "Success",
+          "Customer details updated successfully",
+        );
+        Get.back();
+      } else {
+        BaseApiService().showSnackbar(
+          "Error",
+          "Failed to update details",
+          isError: true,
+        );
+      }
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "An error occurred: $e",
+        isError: true,
+      );
+      print("Error updating customer details: $e");
+    } finally {
+      isUpdatingDetails.value = false;
+    }
+  }
 }
 
 class CustomerDetailsScreen extends StatelessWidget {
   const CustomerDetailsScreen({Key? key}) : super(key: key);
+
+  /// ✅ Show edit customer details dialog
+  void _showEditDetailsDialog(CustomerDetailsController controller) {
+    // ✅ Safety check: ensure controller is not disposed
+    if (controller._isDisposed) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Controller has been disposed. Please try again.",
+        isError: true,
+      );
+      return;
+    }
+
+    // Initialize text controllers with current values
+    try {
+      controller.emailController.text =
+          controller.customerDetails.value.email ?? '';
+      controller.addressController.text =
+          controller.customerDetails.value.address ?? '';
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to initialize form fields",
+        isError: true,
+      );
+      return;
+    }
+
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Update Customer Details',
+                      style: AppText.headingMedium,
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close),
+                      onPressed: () => Get.back(),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 24),
+
+                // Email Field
+                Text('Email', style: AppText.labelMedium),
+                SizedBox(height: 8),
+                TextField(
+                  controller: controller.emailController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter email',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: Icon(Icons.email, color: AppColors.primary),
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                  ),
+                ),
+                SizedBox(height: 20),
+
+                // Address Field
+                Text('Address', style: AppText.labelMedium),
+                SizedBox(height: 8),
+                TextField(
+                  controller: controller.addressController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Enter address',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.location_on,
+                      color: AppColors.primary,
+                    ),
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                  ),
+                ),
+                SizedBox(height: 32),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Get.back(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: AppText.labelMedium.copyWith(
+                            color: AppColors.textColorPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Obx(
+                        () => ElevatedButton(
+                          onPressed:
+                              controller.isUpdatingDetails.value
+                                  ? null
+                                  : () => controller.updateCustomerDetails(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            disabledBackgroundColor: AppColors.primary
+                                .withOpacity(0.5),
+                          ),
+                          child:
+                              controller.isUpdatingDetails.value
+                                  ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                  : Text('Update', style: AppText.button),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,10 +387,8 @@ class CustomerDetailsScreen extends StatelessWidget {
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 'Customer Profile',
-                style: TextStyle(
+                style: AppText.headingMedium.copyWith(
                   color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
                   shadows: [
                     Shadow(
                       blurRadius: 10,
@@ -224,16 +459,7 @@ class CustomerDetailsScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showTicketCreationSheet(context, controller),
-        label: Text(
-          "Raise Ticket",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
+        label: Text("Raise Ticket", style: AppText.button),
         icon: Icon(Icons.add, size: 24, color: AppColors.backgroundLight),
 
         //         child: GestureDetector(
@@ -298,8 +524,7 @@ class CustomerDetailsScreen extends StatelessWidget {
             SizedBox(height: 20),
             Text(
               'Loading Customer Details...',
-              style: TextStyle(
-                fontSize: 16,
+              style: AppText.bodyLarge.copyWith(
                 color: AppColors.textColorSecondary,
                 fontWeight: FontWeight.w500,
               ),
@@ -327,17 +552,15 @@ class CustomerDetailsScreen extends StatelessWidget {
           SizedBox(height: 20),
           Text(
             'Oops!',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.error,
-            ),
+            style: AppText.headingLarge.copyWith(color: AppColors.error),
           ),
           SizedBox(height: 10),
           Text(
             controller.errorMessage.value,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: AppColors.textColorSecondary),
+            style: AppText.bodyLarge.copyWith(
+              color: AppColors.textColorSecondary,
+            ),
           ),
           SizedBox(height: 30),
           ElevatedButton(
@@ -350,14 +573,7 @@ class CustomerDetailsScreen extends StatelessWidget {
               ),
               elevation: 2,
             ),
-            child: Text(
-              'Try Again',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text('Try Again', style: AppText.button),
           ),
         ],
       ),
@@ -377,45 +593,6 @@ class CustomerDetailsScreen extends StatelessWidget {
 
         // // Quick Stats (if available)
         // _buildQuickStats(customer),
-
-        // Information Sections
-        _buildInfoSection(
-          title: 'Contact Information',
-          icon: Icons.contact_phone_rounded,
-          children: [
-            if (customer.email?.isNotEmpty ?? false)
-              _buildInfoItem(Icons.email_rounded, 'Email', customer.email!),
-            if (customer.workphnumber != null)
-              _buildInfoItem(
-                Icons.work_rounded,
-                'Work Phone',
-                customer.workphnumber.toString(),
-              ),
-            // if (customer.cellPhone?.isNotEmpty ?? false)
-            //   _buildInfoItem(
-            //     Icons.phone_iphone_rounded,
-            //     'Mobile',
-            //     customer.cellPhone!,
-            //   ),
-          ],
-        ),
-
-        _buildInfoSection(
-          title: 'Address Details',
-          icon: Icons.location_pin,
-          children: [
-            if (customer.address?.isNotEmpty ?? false)
-              _buildInfoItem(Icons.home_rounded, 'Address', customer.address!),
-            if ((customer.city?.isNotEmpty ?? false) ||
-                (customer.state?.isNotEmpty ?? false))
-              _buildInfoItem(
-                Icons.location_city_rounded,
-                'Location',
-                '${customer.city ?? ''}${(customer.city?.isNotEmpty ?? false) && (customer.state?.isNotEmpty ?? false) ? ', ' : ''}${customer.state ?? ''}',
-              ),
-          ],
-        ),
-
         _buildInfoSection(
           title: 'Service Information',
           icon: Icons.settings_rounded,
@@ -437,6 +614,46 @@ class CustomerDetailsScreen extends StatelessWidget {
                 Icons.receipt_long_rounded,
                 'Plan',
                 customer.subscriptionPlan!,
+              ),
+          ],
+        ),
+
+        // Information Sections
+        _buildInfoSection(
+          title: 'Contact Information',
+          icon: Icons.contact_phone_rounded,
+          onEdit: () => _showEditDetailsDialog(controller),
+          children: [
+            if (customer.email?.isNotEmpty ?? false)
+              _buildInfoItem(Icons.email_rounded, 'Email', customer.email!),
+            if (customer.workphnumber != null)
+              _buildInfoItem(
+                Icons.work_rounded,
+                'Work Phone',
+                customer.workphnumber.toString(),
+              ),
+            // if (customer.cellPhone?.isNotEmpty ?? false)
+            //   _buildInfoItem(
+            //     Icons.phone_iphone_rounded,
+            //     'Mobile',
+            //     customer.cellPhone!,
+            //   ),
+          ],
+        ),
+
+        _buildInfoSection(
+          title: 'Address Details',
+          icon: Icons.location_pin,
+          onEdit: () => _showEditDetailsDialog(controller),
+          children: [
+            if (customer.address?.isNotEmpty ?? false)
+              _buildInfoItem(Icons.home_rounded, 'Address', customer.address!),
+            if ((customer.city?.isNotEmpty ?? false) ||
+                (customer.state?.isNotEmpty ?? false))
+              _buildInfoItem(
+                Icons.location_city_rounded,
+                'Location',
+                '${customer.city ?? ''}${(customer.city?.isNotEmpty ?? false) && (customer.state?.isNotEmpty ?? false) ? ', ' : ''}${customer.state ?? ''}',
               ),
           ],
         ),
@@ -534,11 +751,7 @@ class CustomerDetailsScreen extends StatelessWidget {
               children: [
                 Text(
                   customer.contactName ?? 'Unnamed Customer',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: AppText.headingLarge.copyWith(color: Colors.white),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -554,11 +767,7 @@ class CustomerDetailsScreen extends StatelessWidget {
                     ),
                     child: Text(
                       'ID: ${customer.accountId}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppText.labelMedium.copyWith(color: Colors.white),
                     ),
                   ),
               ],
@@ -604,11 +813,7 @@ class CustomerDetailsScreen extends StatelessWidget {
             Icon(Icons.add, size: 24, color: AppColors.backgroundLight),
             Text(
               "Raise Ticket",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: AppText.button,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -685,15 +890,16 @@ class CustomerDetailsScreen extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 14,
+            style: AppText.labelLarge.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.textColorPrimary,
             ),
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: AppColors.textColorSecondary),
+            style: AppText.labelSmall.copyWith(
+              color: AppColors.textColorSecondary,
+            ),
           ),
         ],
       ),
@@ -704,6 +910,7 @@ class CustomerDetailsScreen extends StatelessWidget {
     required String title,
     required IconData icon,
     required List<Widget> children,
+    VoidCallback? onEdit,
   }) {
     if (children.isEmpty) return SizedBox.shrink();
 
@@ -713,24 +920,30 @@ class CustomerDetailsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 18, color: AppColors.primary),
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 18, color: AppColors.primary),
+                  ),
+                  SizedBox(width: 12),
+                  Text(title, style: AppText.headingMedium),
+                ],
               ),
-              SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textColorPrimary,
+              // ✅ Edit button
+              if (onEdit != null)
+                IconButton(
+                  icon: Icon(Icons.edit, size: 20, color: AppColors.primary),
+                  onPressed: onEdit,
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
                 ),
-              ),
             ],
           ),
           SizedBox(height: 12),
@@ -775,19 +988,16 @@ class CustomerDetailsScreen extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 14,
+                  style: AppText.labelMedium.copyWith(
                     color: AppColors.textColorSecondary,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 SizedBox(height: 4),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textColorPrimary,
+                  style: AppText.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: AppColors.textColorPrimary,
                   ),
                 ),
               ],
@@ -844,6 +1054,7 @@ class TicketCreationController extends GetxController {
   // State
   final Rx<CategoryData?> selectedCategory = Rx<CategoryData?>(null);
   final Rx<SubCategory?> selectedSubcategory = Rx<SubCategory?>(null);
+  final RxString selectedDescription = ''.obs; // NEW: For selected description
   final RxString description = ''.obs;
   final Rx<File?> uploadedImage = Rx<File?>(null);
   final RxBool isSubmitting = false.obs;
@@ -896,12 +1107,15 @@ class TicketCreationController extends GetxController {
   void clear() {
     selectedCategory.value = null;
     selectedSubcategory.value = null;
+    selectedDescription.value = ''; // NEW: Clear description
     description.value = '';
     uploadedImage.value = null;
   }
 
   void setImage(File? file) => uploadedImage.value = file;
   void setDescription(String value) => description.value = value;
+  void setSelectedDescription(String value) =>
+      selectedDescription.value = value; // NEW
 
   // ✅ NEW: createTicket using new state variables
   Future<void> createTicket() async {
@@ -1046,10 +1260,8 @@ class TicketCreationBottomSheet extends StatelessWidget {
                     children: [
                       Text(
                         "Create New Ticket",
-                        style: TextStyle(
+                        style: AppText.headingMedium.copyWith(
                           color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       IconButton(
@@ -1105,13 +1317,38 @@ class TicketCreationBottomSheet extends StatelessWidget {
 
                     SizedBox(height: 16),
 
-                    // Description
-                    _buildTextField(
-                      controller: controller.description,
-                      label: "Description",
-                      hint: "Describe your issue in detail...",
-                      maxLines: 4,
-                    ),
+                    // Description - Dropdown if available, TextField otherwise
+                    Obx(() {
+                      final hasDescriptions =
+                          controller.selectedSubcategory.value?.descriptions !=
+                              null &&
+                          controller
+                              .selectedSubcategory
+                              .value!
+                              .descriptions
+                              .isNotEmpty;
+
+                      if (hasDescriptions) {
+                        return _buildDropdownField(
+                          label: "Description",
+                          hint: "Select a description",
+                          value:
+                              controller.selectedDescription.value.isEmpty
+                                  ? null
+                                  : controller.selectedDescription.value,
+                          isLoading: false,
+                          onTap:
+                              () => _showDescriptionDialog(context, controller),
+                        );
+                      } else {
+                        return _buildTextField(
+                          controller: controller.description,
+                          label: "Description",
+                          hint: "Describe your issue in detail...",
+                          maxLines: 4,
+                        );
+                      }
+                    }),
 
                     SizedBox(height: 20),
 
@@ -1149,14 +1386,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textColorPrimary,
-          ),
-        ),
+        Text(label, style: AppText.labelMedium),
         SizedBox(height: 8),
         GestureDetector(
           onTap: onTap,
@@ -1179,8 +1409,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     value ?? hint,
-                    style: TextStyle(
-                      fontSize: 15,
+                    style: AppText.bodyMedium.copyWith(
                       color:
                           value != null
                               ? AppColors.textColorPrimary
@@ -1206,14 +1435,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textColorPrimary,
-          ),
-        ),
+        Text(label, style: AppText.labelMedium),
         SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
@@ -1233,7 +1455,9 @@ class TicketCreationBottomSheet extends StatelessWidget {
             maxLines: maxLines,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: AppColors.textColorHint),
+              hintStyle: AppText.bodyMedium.copyWith(
+                color: AppColors.textColorHint,
+              ),
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 16,
@@ -1252,14 +1476,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Attach Image (Optional)",
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textColorPrimary,
-              ),
-            ),
+            Text("Attach Image (Optional)", style: AppText.labelMedium),
             SizedBox(height: 12),
             Row(
               children: [
@@ -1282,14 +1499,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Preview",
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textColorPrimary,
-              ),
-            ),
+            Text("Preview", style: AppText.labelMedium),
             SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
@@ -1355,11 +1565,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
           icon: Icon(icon, color: AppColors.primary, size: 24),
           label: Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
+            style: AppText.labelMedium.copyWith(color: AppColors.primary),
           ),
           style: TextButton.styleFrom(
             padding: EdgeInsets.all(8),
@@ -1405,14 +1611,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
                     color: Colors.white,
                   ),
                 )
-                : Text(
-                  "Submit Ticket",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                : Text("Submit Ticket", style: AppText.button),
       ),
     );
   }
@@ -1433,7 +1632,7 @@ class TicketCreationBottomSheet extends StatelessWidget {
               itemBuilder: (context, index) {
                 final cat = controller.ticketCategories[index];
                 return ListTile(
-                  title: Text(cat.categoryName),
+                  title: Text(cat.categoryName, style: AppText.bodyLarge),
                   onTap: () {
                     controller.selectedCategory.value = cat;
                     controller.selectedSubcategory.value = null;
@@ -1461,13 +1660,93 @@ class TicketCreationBottomSheet extends StatelessWidget {
             itemBuilder: (context, index) {
               final sub = subcategories[index];
               return ListTile(
-                title: Text(sub.subcategoryName),
+                title: Text(sub.subcategoryName, style: AppText.bodyLarge),
                 onTap: () {
                   controller.selectedSubcategory.value = sub;
                   Navigator.pop(context);
                 },
               );
             },
+          ),
+    );
+  }
+
+  // ✅ NEW: Show description dialog
+  void _showDescriptionDialog(
+    BuildContext context,
+    TicketCreationController controller,
+  ) {
+    final descriptions =
+        controller.selectedSubcategory.value?.descriptions ?? [];
+
+    // If no descriptions from API, allow manual entry
+    if (descriptions.isEmpty) {
+      showDialog(
+        context: context,
+        builder:
+            (ctx) => AlertDialog(
+              title: Text("Enter Description", style: AppText.headingSmall),
+              content: TextField(
+                controller: TextEditingController(
+                  text: controller.selectedDescription.value,
+                ),
+                onChanged: (value) {
+                  controller.setSelectedDescription(value);
+                  controller.setDescription(value);
+                },
+                decoration: InputDecoration(
+                  hintText: "Describe the issue...",
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("Cancel"),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: Text("Done"),
+                ),
+              ],
+            ),
+      );
+      return;
+    }
+
+    // Show as bottom sheet with predefined descriptions
+    showModalBottomSheet(
+      context: context,
+      builder:
+          (ctx) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.all(16),
+                child: Text("Select Description", style: AppText.headingSmall),
+              ),
+              Flexible(
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  shrinkWrap: true,
+                  itemCount: descriptions.length,
+                  itemBuilder: (context, index) {
+                    final desc = descriptions[index];
+                    return ListTile(
+                      title: Text(desc, style: AppText.bodyLarge),
+                      onTap: () {
+                        controller.setSelectedDescription(desc);
+                        controller.setDescription(desc);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
     );
   }

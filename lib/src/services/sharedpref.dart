@@ -126,13 +126,13 @@ class AppSharedPref {
   /// Retrieves the stored authentication token.
   ///
   /// Returns `null` if no token is found or if it has expired.
-  String getToken() {
+  String? getToken() {
     _validatePrefs();
     final String? token = _prefs!.getString(_tokenKey);
     if (token == null) {
       developer.log("No token found.", name: "AppSharedPref.getToken");
     }
-    return token ?? '';
+    return token;
   }
 
   /// Removes the authentication token from storage.
@@ -178,7 +178,7 @@ class AppSharedPref {
     return _prefs!.remove(_otp);
   }
 
-  /// Saves the authentication token.
+  /// Saves the FCM authentication token.
   ///
   /// Returns `true` if the operation succeeded.
   Future<bool> setfcmToken(String token) {
@@ -191,7 +191,7 @@ class AppSharedPref {
       return Future.value(false);
     }
     developer.log("FCM Token saved.", name: "AppSharedPref.setFCMToken");
-    return _prefs!.setString(_tokenKey, token);
+    return _prefs!.setString(_fcmToken, token);
   }
 
   /// Retrieves the stored authentication token.

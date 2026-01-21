@@ -202,6 +202,44 @@ flutter build web --release
 
 *Add screenshots of the app here*
 
+## 📢 FCM Token Upload
+
+### Overview
+FCM (Firebase Cloud Messaging) token is automatically uploaded to the backend after successful user login.
+
+### Status
+✅ **Complete and Production Ready**
+- Works in both debug and release builds
+- Non-blocking upload (doesn't delay login)
+- Automatic retry on network failure
+- Comprehensive error logging
+
+### Documentation
+For detailed information about FCM token implementation and bug fix:
+- **Quick Start**: `FCM_IMPLEMENTATION_README.txt`
+- **Summary**: `FCM_TOKEN_FIX_SUMMARY.md`
+- **Complete Guide**: `FCM_COMPLETE_SOLUTION.md`
+- **Code Changes**: `FCM_EXACT_CODE_CHANGES.md`
+- **Testing**: `FCM_IMPLEMENTATION_CHECKLIST.md`
+- **Visual Comparison**: `FCM_VISUAL_COMPARISON.md`
+
+### Key Features
+- ✅ Non-blocking background upload
+- ✅ Automatic retry (up to 2 attempts)
+- ✅ 10-second timeout per attempt
+- ✅ Works in release build APK
+- ✅ Proper logging with `developer.log()`
+- ✅ Graceful error handling
+
+### Testing
+```bash
+# Build release APK
+flutter clean && flutter build apk --release
+
+# Check logs
+adb logcat | grep "fcmToken"
+```
+
 ## 🤝 Contributing
 
 1. Fork the repository

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../ui/scaffold_screen.dart';
@@ -34,16 +36,28 @@ class OTPController extends GetxController {
   RxInt secondsRemaining = 60.obs;
   RxBool resendEnabled = false.obs;
 
+  // ✅ Timer for showing SMS option after 45 seconds
+  RxInt smsCountdownSeconds = 45.obs;
+  RxBool showSmsOption = false.obs;
+
   // ✅ OTP Mode: "whatsapp" or "sms"
   RxString otpMode = "whatsapp".obs;
 
+  // ✅ Error tracking for display
+  RxString otpError = "".obs;
+  RxBool isVerifying = false.obs;
+
   late Timer timer;
+  late Timer smsTimer;
   final BaseApiService _baseApiService = BaseApiService(BaseApiService.api);
 
   @override
   void onInit() {
     super.onInit();
     startTimer();
+    startSmsCountdown(); // ✅ Start SMS option countdown
+    // ✅ Auto-detect OTP from clipboard when screen loads
+    autoDetectOtpFromClipboard();
   }
 
   void startTimer() {
@@ -53,6 +67,19 @@ class OTPController extends GetxController {
       secondsRemaining.value--;
       if (secondsRemaining.value <= 0) {
         resendEnabled.value = true;
+        timer.cancel();
+      }
+    });
+  }
+
+  /// ✅ Start countdown for showing SMS option (45 seconds)
+  void startSmsCountdown() {
+    smsCountdownSeconds.value = 45;
+    showSmsOption.value = false;
+    smsTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      smsCountdownSeconds.value--;
+      if (smsCountdownSeconds.value <= 0) {
+        showSmsOption.value = true;
         timer.cancel();
       }
     });
@@ -76,12 +103,74 @@ class OTPController extends GetxController {
       secondsRemaining.value = 60;
       resendEnabled.value = false;
       startTimer();
-      // Add API call to resend OTP if needed
-      ApiServices().generateOTP(phone, isWhatsApp: true);
-      _baseApiService.showSnackbar(
-        "OTP",
-        "OTP resent to $phone",
-      ); // Example feedback
+
+      // ✅ Reset SMS countdown when resending
+      if (otpMode.value == "sms") {
+        smsCountdownSeconds.value = 45;
+        showSmsOption.value = true; // Keep SMS option visible after first show
+      } else {
+        startSmsCountdown(); // Restart countdown if switching to WhatsApp
+      }
+
+      // ✅ Call API with selected OTP mode (SMS or WhatsApp)
+      final isWhatsApp = otpMode.value == "whatsapp";
+      ApiServices().generateOTP(phone, resend: true, isWhatsApp: isWhatsApp);
+
+      final method = isWhatsApp ? "WhatsApp" : "SMS";
+      _baseApiService.showSnackbar("OTP", "OTP resent to $phone via $method");
+    }
+  }
+
+  /// ✅ Handle pasted OTP - auto-fill fields and verify
+  void handleOtpPaste(String pastedText) {
+    // Extract only digits from pasted text
+    final otpDigits = pastedText.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (otpDigits.length >= 6) {
+      // ✅ Clear all fields first
+      for (int i = 0; i < 6; i++) {
+        otpControllers[i].clear();
+      }
+
+      // ✅ Small delay to ensure clear is processed
+      Future.delayed(const Duration(milliseconds: 10), () {
+        // Fill OTP fields with first 6 digits
+        for (int i = 0; i < 6; i++) {
+          otpControllers[i].text = otpDigits[i];
+          print('✅ Filled field $i with digit: ${otpDigits[i]}');
+        }
+
+        print("✅ OTP auto-filled from paste: ${'*' * 6}");
+        print("✅ OTP values: ${otpControllers.map((c) => c.text).join()}");
+
+        // Auto-verify after filling
+        Future.delayed(const Duration(milliseconds: 500), verifyAndLogin);
+      });
+    } else {
+      print("❌ Invalid OTP length (pasted text had less than 6 digits)");
+    }
+  }
+
+  /// ✅ Auto-detect OTP from clipboard on screen load
+  Future<void> autoDetectOtpFromClipboard() async {
+    try {
+      final ClipboardData? data = await Clipboard.getData('text/plain');
+      if (data != null && data.text != null) {
+        final clipboardText = data.text!;
+        // Check if clipboard contains digits
+        final otpDigits = clipboardText.replaceAll(RegExp(r'[^0-9]'), '');
+
+        if (otpDigits.length >= 6) {
+          handleOtpPaste(otpDigits);
+          _baseApiService.showSnackbar(
+            "OTP Detected",
+            "OTP automatically filled from clipboard",
+          );
+        }
+      }
+    } catch (e) {
+      // Silently fail if clipboard access fails
+      print("Could not access clipboard: $e");
     }
   }
 
@@ -180,6 +269,7 @@ class OTPController extends GetxController {
     String enteredOTP = otpControllers.map((c) => c.text).join();
 
     if (enteredOTP.length != 6) {
+      otpError.value = "Please enter a valid 6-digit OTP";
       _baseApiService.showSnackbar(
         "Error",
         "Please enter a valid 6-digit OTP.",
@@ -187,111 +277,164 @@ class OTPController extends GetxController {
       return;
     }
 
-    // 🔑 STEP 1: Check if user is already registered (has valid token)
-    bool isGuest = token.isEmpty || token == "Guest";
-    if (!isGuest) {
-      // ✅ Registered user → verify OTP and go to home
+    // ✅ Set verification state to prevent multiple submissions
+    isVerifying.value = true;
+    otpError.value = ""; // Clear previous errors
+
+    try {
+      // 🔑 STEP 1: Check if user is already registered (has valid token)
+      bool isGuest = token.isEmpty || token == "Guest";
+      if (!isGuest) {
+        // ✅ Registered user → verify OTP and go to home
+        try {
+          // Call the actual verifyOTP API
+          final verifyResponse = await ApiServices().verifyOTP(
+            otp: enteredOTP,
+            mobile: phone,
+          );
+
+          if (verifyResponse != null && verifyResponse.isValid) {
+            // ✅ OTP verified successfully
+            // Token and user data are already saved by the API method
+
+            if (!Get.isRegistered<ScaffoldController>()) {
+              Get.put(ScaffoldController());
+            }
+
+            _baseApiService.showSnackbar("Success", verifyResponse.message);
+
+            // 🔑 Check user role from response and navigate accordingly
+            final userRole = verifyResponse.data.role;
+            
+            // 📱 Upload FCM token in background (non-blocking)
+            // This runs after navigation so it doesn't slow down the login flow
+            _uploadFcmTokenInBackground();
+            
+            if (userRole == "technician") {
+              Get.offAllNamed(AppRoutes.technicianDashboard);
+            } else {
+              Get.offAllNamed(AppRoutes.home);
+            }
+          } else {
+            // ✅ Show error message from API response as toast + display below OTP box
+            final errorMessage = verifyResponse?.message ?? "Invalid OTP";
+            print("❌ OTP Verification Failed: $errorMessage");
+            otpError.value = errorMessage; // ✅ Store error for UI display
+            _baseApiService.showSnackbar("Error", errorMessage, isError: true);
+            _clearOtpFields();
+          }
+        } catch (e) {
+          final errorMsg = "OTP verification failed. Please try again.";
+          otpError.value = errorMsg;
+          _baseApiService.showSnackbar("Error", errorMsg);
+          _clearOtpFields();
+        }
+        return;
+      } else if (AppSharedPref.instance.getRole() == 'technician') {
+        Get.toNamed(AppRoutes.technicianDashboard);
+        return;
+      }
+
+      // 👤 Guest/Unregistered user flow
       try {
-        // Call the actual verifyOTP API
+        // Verify OTP first (even for guests)
         final verifyResponse = await ApiServices().verifyOTP(
           otp: enteredOTP,
           mobile: phone,
         );
 
-        if (verifyResponse != null && verifyResponse.isValid) {
-          // ✅ OTP verified successfully
-          // Token and user data are already saved by the API method
-
-          if (!Get.isRegistered<ScaffoldController>()) {
-            Get.put(ScaffoldController());
-          }
-
-          _baseApiService.showSnackbar("Success", verifyResponse.message);
-
-          // 🔑 Check user role from response and navigate accordingly
-          final userRole = verifyResponse.data.role;
-          if (userRole == "technician") {
-            Get.offAllNamed(AppRoutes.technicianDashboard);
-          } else {
-            Get.offAllNamed(AppRoutes.home);
-          }
-        } else {
-          _baseApiService.showSnackbar(
-            "Error",
-            verifyResponse?.message ?? "Invalid OTP",
-          );
+        if (verifyResponse == null || !verifyResponse.isValid) {
+          final errorMessage = verifyResponse?.message ?? "Invalid OTP";
+          print("❌ OTP Verification Failed (Guest): $errorMessage");
+          otpError.value = errorMessage; // ✅ Store error for UI display
+          _baseApiService.showSnackbar("Error", errorMessage, isError: true);
           _clearOtpFields();
+          return;
+        }
+
+        // Now fetch KYC status to decide next screen
+        final kycStatusResponse = await ApiServices().checkKycStatus(phone);
+
+        if (kycStatusResponse?.status != "success") {
+          // Treat as new user with no KYC
+          _navigateToUnregisteredFlow();
+          return;
+        }
+
+        final data = kycStatusResponse!.data;
+        final serviceStatus =
+            kycStatusResponse.serviceStatus; // "feasible", "under_review", etc.
+        final steps = data.registration.steps;
+        final hasDocuments = data.documents.isNotEmpty;
+
+        // Save guest context
+        await AppSharedPref.instance.setUserID(data.registration.id);
+        await AppSharedPref.instance.setMobileNumber(phone);
+        await AppSharedPref.instance.setToken("Guest");
+        await AppSharedPref.instance.setRole(UserRole.unknown.name);
+        await AppSharedPref.instance.setVerificationStatus(false);
+
+        // ✅ Decision Logic
+        if (steps <= 3 || (serviceStatus == "under_review" || underReview!)) {
+          Get.offAndToNamed(AppRoutes.kycReview);
+        } else if (steps >= 3 && hasDocuments) {
+          // Fully complete → show policy screen
+          Get.offAndToNamed(AppRoutes.finalKYCReview);
+        } else {
+          // Incomplete KYC → allow editing
+          Get.offAndToNamed(AppRoutes.unregisteredUser);
         }
       } catch (e) {
-        _baseApiService.showSnackbar(
-          "Error",
-          "OTP verification failed. Please try again.",
-        );
-        _clearOtpFields();
-      }
-      return;
-    } else if (AppSharedPref.instance.getRole() == 'technician') {
-      Get.toNamed(AppRoutes.technicianDashboard);
-      return;
-    }
-
-    // 👤 Guest/Unregistered user flow
-    try {
-      // Verify OTP first (even for guests)
-      final verifyResponse = await ApiServices().verifyOTP(
-        otp: enteredOTP,
-        mobile: phone,
-      );
-
-      if (verifyResponse == null || !verifyResponse.isValid) {
-        _baseApiService.showSnackbar(
-          "Error",
-          verifyResponse?.message ?? "Invalid OTP",
-        );
-        _clearOtpFields();
-        return;
-      }
-
-      // Now fetch KYC status to decide next screen
-      final kycStatusResponse = await ApiServices().checkKycStatus(phone);
-
-      if (kycStatusResponse?.status != "success") {
-        // Treat as new user with no KYC
+        print("Guest OTP/KYC flow error: $e");
+        final errorMsg = "Something went wrong. Please try again.";
+        otpError.value = errorMsg;
+        _baseApiService.showSnackbar("Error", errorMsg);
         _navigateToUnregisteredFlow();
-        return;
       }
-
-      final data = kycStatusResponse!.data;
-      final serviceStatus =
-          kycStatusResponse.serviceStatus; // "feasible", "under_review", etc.
-      final steps = data.registration.steps;
-      final hasDocuments = data.documents.isNotEmpty;
-
-      // Save guest context
-      await AppSharedPref.instance.setUserID(data.registration.id);
-      await AppSharedPref.instance.setMobileNumber(phone);
-      await AppSharedPref.instance.setToken("Guest");
-      await AppSharedPref.instance.setRole(UserRole.unknown.name);
-      await AppSharedPref.instance.setVerificationStatus(false);
-
-      // ✅ Decision Logic
-      if (steps <= 3 || (serviceStatus == "under_review" || underReview!)) {
-        Get.offAndToNamed(AppRoutes.kycReview);
-      } else if (steps >= 3 && hasDocuments) {
-        // Fully complete → show policy screen
-        Get.offAndToNamed(AppRoutes.finalKYCReview);
-      } else {
-        // Incomplete KYC → allow editing
-        Get.offAndToNamed(AppRoutes.unregisteredUser);
-      }
-    } catch (e) {
-      print("Guest OTP/KYC flow error: $e");
-      _baseApiService.showSnackbar(
-        "Error",
-        "Something went wrong. Please try again.",
-      );
-      _navigateToUnregisteredFlow();
+    } finally {
+      isVerifying.value = false; // Clear verification state
     }
+  }
+
+  /// 📱 Upload FCM token to the API after successful login
+  /// 📱 Upload FCM token in background (non-blocking)
+  /// This method runs asynchronously without awaiting, allowing login to proceed
+  void _uploadFcmTokenInBackground() {
+    // Run in background without blocking the UI
+    Future.microtask(() async {
+      try {
+        final fcmToken = await AppSharedPref.instance.getFCMToken();
+
+        if (fcmToken == null || fcmToken.isEmpty) {
+          developer.log(
+            '⚠️ FCM token is empty or null in background upload',
+            name: 'OTPController._uploadFcmTokenInBackground',
+          );
+          return;
+        }
+
+        final apiService = ApiServices();
+        final result = await apiService.fcmToken();
+
+        if (result != null) {
+          developer.log(
+            '✅ FCM Token uploaded successfully in background',
+            name: 'OTPController._uploadFcmTokenInBackground',
+          );
+        } else {
+          developer.log(
+            '⚠️ Failed to upload FCM token in background - API returned null',
+            name: 'OTPController._uploadFcmTokenInBackground',
+          );
+        }
+      } catch (e) {
+        developer.log(
+          '❌ Error uploading FCM token in background: $e',
+          name: 'OTPController._uploadFcmTokenInBackground',
+          error: e,
+        );
+      }
+    });
   }
 
   void _clearOtpFields() {
@@ -308,6 +451,7 @@ class OTPController extends GetxController {
   @override
   void onClose() {
     timer.cancel();
+    if (smsTimer.isActive) smsTimer.cancel(); // ✅ Cancel SMS timer
     for (var c in otpControllers) {
       c.dispose();
     }

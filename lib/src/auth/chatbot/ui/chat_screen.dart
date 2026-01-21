@@ -27,7 +27,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _selectedSubCategory;
   Map<String, List<String>> _apiCategories = {};
   final String _baseUrl = 'https://asiafibernet.in'; // Base URL for API calls
-  final String token =
+  final String? token =
       // 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjdXN0b21lcl9pZCI6NCwibW9iaWxlIjoiNTUyMzIzNTY1NiIsImlhdCI6MTc2NzYxNTI3MiwiZXhwIjoxNzY3OTc1MjcyfQ.iQD_OeESMnP85mNoOApdf2hPjNxX85LLznFVkPlr6hM'; // Base URL for API calls
       AppSharedPref.instance.getToken();
 
@@ -96,9 +96,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       const initialOptions = [
-        'Check Internet Status',
-        'View My Bill',
-        'Upgrade/Downgrade Plan',
         'Report a Problem',
         'Talk to Agent',
         'Raise a Complaint',
@@ -197,13 +194,14 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (text == 'Report a Problem') {
-      _handleReportProblem();
+      // _handleReportProblem();
+      _handleRaiseComplaint();
       return;
     }
 
     if (text == 'Raise a Complaint') {
       _handleRaiseComplaint();
-      print('>>>>>>>>>>>>>Raised complaint');
+
       return;
     }
 

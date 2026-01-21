@@ -1,4 +1,6 @@
 // lib/src/widgets/app_drawer.dart
+import 'package:asia_fibernet/src/services/apis/api_services.dart';
+import 'package:asia_fibernet/src/services/apis/base_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -652,8 +654,8 @@ class _DrawerFooter extends StatelessWidget {
                 icon: Iconsax.logout,
                 label: "Logout",
                 onTap: () {
-                  AppSharedPref.instance.clearAllUserData();
-                  Get.offAllNamed('/login');
+                  ApiServices().logOutDialog();
+                  // Get.offAllNamed('/login');
                 },
               ),
               _FooterButton(
