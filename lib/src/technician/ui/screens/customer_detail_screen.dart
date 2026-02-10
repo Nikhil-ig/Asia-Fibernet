@@ -51,7 +51,7 @@ class CustomerDetailsController extends GetxController {
         "Customer ID is missing.",
         isError: true,
       );
-      Get.back();
+      Navigator.of(Get.context!).pop();
     }
   }
 
@@ -188,7 +188,7 @@ class CustomerDetailsController extends GetxController {
           "Success",
           "Customer details updated successfully",
         );
-        Get.back();
+        Navigator.of(Get.context!).pop();
       } else {
         BaseApiService().showSnackbar(
           "Error",
@@ -213,160 +213,9 @@ class CustomerDetailsScreen extends StatelessWidget {
   const CustomerDetailsScreen({Key? key}) : super(key: key);
 
   /// ✅ Show edit customer details dialog
+  /// ✅ Beautiful bottom sheet for editing customer details
   void _showEditDetailsDialog(CustomerDetailsController controller) {
-    // ✅ Safety check: ensure controller is not disposed
-    if (controller._isDisposed) {
-      BaseApiService().showSnackbar(
-        "Error",
-        "Controller has been disposed. Please try again.",
-        isError: true,
-      );
-      return;
-    }
-
-    // Initialize text controllers with current values
-    try {
-      controller.emailController.text =
-          controller.customerDetails.value.email ?? '';
-      controller.addressController.text =
-          controller.customerDetails.value.address ?? '';
-    } catch (e) {
-      BaseApiService().showSnackbar(
-        "Error",
-        "Failed to initialize form fields",
-        isError: true,
-      );
-      return;
-    }
-
-    Get.dialog(
-      Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Update Customer Details',
-                      style: AppText.headingMedium,
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close),
-                      onPressed: () => Get.back(),
-                      padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 24),
-
-                // Email Field
-                Text('Email', style: AppText.labelMedium),
-                SizedBox(height: 8),
-                TextField(
-                  controller: controller.emailController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter email',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: Icon(Icons.email, color: AppColors.primary),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                ),
-                SizedBox(height: 20),
-
-                // Address Field
-                Text('Address', style: AppText.labelMedium),
-                SizedBox(height: 8),
-                TextField(
-                  controller: controller.addressController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: 'Enter address',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: Icon(
-                      Icons.location_on,
-                      color: AppColors.primary,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                ),
-                SizedBox(height: 32),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Get.back(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[300],
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: AppText.labelMedium.copyWith(
-                            color: AppColors.textColorPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Obx(
-                        () => ElevatedButton(
-                          onPressed:
-                              controller.isUpdatingDetails.value
-                                  ? null
-                                  : () => controller.updateCustomerDetails(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            disabledBackgroundColor: AppColors.primary
-                                .withOpacity(0.5),
-                          ),
-                          child:
-                              controller.isUpdatingDetails.value
-                                  ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                  : Text('Update', style: AppText.button),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    _showEditDetailsBottomSheet(controller);
   }
 
   @override
@@ -915,55 +764,435 @@ class CustomerDetailsScreen extends StatelessWidget {
     if (children.isEmpty) return SizedBox.shrink();
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
+          // Header with icon and title
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    // ✅ Beautiful gradient icon container
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary.withOpacity(0.8),
+                            AppColors.primary.withOpacity(0.4),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, size: 20, color: Colors.white),
+                    ),
+                    SizedBox(width: 14),
+                    // Title with subtitle-like effect
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: AppText.headingSmall.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textColorPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                // ✅ Beautiful edit button
+                if (onEdit != null)
                   Container(
-                    padding: EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(icon, size: 18, color: AppColors.primary),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.edit_rounded,
+                        size: 20,
+                        color: AppColors.primary,
+                      ),
+                      onPressed: onEdit,
+                      padding: EdgeInsets.all(8),
+                      constraints: BoxConstraints(),
+                    ),
                   ),
-                  SizedBox(width: 12),
-                  Text(title, style: AppText.headingMedium),
-                ],
-              ),
-              // ✅ Edit button
-              if (onEdit != null)
-                IconButton(
-                  icon: Icon(Icons.edit, size: 20, color: AppColors.primary),
-                  onPressed: onEdit,
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(),
-                ),
-            ],
+              ],
+            ),
           ),
           SizedBox(height: 12),
+          // ✅ Beautiful card with gradient border effect
           Container(
             padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.1),
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
+                  color: AppColors.primary.withOpacity(0.08),
+                  blurRadius: 15,
                   offset: Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(children: children),
+            child: Column(
+              children: [
+                for (int i = 0; i < children.length; i++) ...[
+                  children[i],
+                  if (i < children.length - 1)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Divider(
+                        height: 1,
+                        color: Colors.grey.withOpacity(0.2),
+                      ),
+                    ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  /// ✅ Beautiful bottom sheet for editing customer details
+  void _showEditDetailsBottomSheet(CustomerDetailsController controller) {
+    // Safety check: ensure controller is not disposed
+    if (controller._isDisposed) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Controller has been disposed. Please try again.",
+        isError: true,
+      );
+      return;
+    }
+
+    // Initialize text controllers with current values
+    try {
+      controller.emailController.text =
+          controller.customerDetails.value.email ?? '';
+      controller.addressController.text =
+          controller.customerDetails.value.address ?? '';
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to initialize form fields",
+        isError: true,
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: Get.context!,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(Get.context!).size.height * 0.75,
+      ),
+      builder:
+          (context) => Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(30),
+                topRight: Radius.circular(30),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 24,
+                  offset: Offset(0, -6),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ✅ Beautiful header
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Handle bar
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.edit_rounded,
+                                    color: Colors.white,
+                                    size: 22,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Update Details',
+                                      style: AppText.headingMedium.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Edit customer information',
+                                      style: AppText.labelSmall.copyWith(
+                                        color: Colors.white.withOpacity(0.8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close, color: Colors.white),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ✅ Beautiful form content
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Email Field
+                          Text(
+                            'Email Address',
+                            style: AppText.labelMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textColorPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.2),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.02),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: TextField(
+                              controller: controller.emailController,
+                              textDirection: TextDirection.ltr,
+                              decoration: InputDecoration(
+                                hintText: 'Enter email address',
+                                border: InputBorder.none,
+                                prefixIcon: Icon(
+                                  Icons.email_rounded,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                              ),
+                              style: AppText.bodyMedium,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                          ),
+                          SizedBox(height: 24),
+
+                          // Address Field
+                          Text(
+                            'Address',
+                            style: AppText.labelMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textColorPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.2),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.02),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: TextField(
+                              controller: controller.addressController,
+                              textDirection: TextDirection.ltr,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Enter address',
+                                border: InputBorder.none,
+                                prefixIcon: Padding(
+                                  padding: EdgeInsets.only(top: 12),
+                                  child: Icon(
+                                    Icons.location_on_rounded,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                              ),
+                              style: AppText.bodyMedium,
+                            ),
+                          ),
+                          SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // ✅ Beautiful action buttons
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Colors.grey[200]!, width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: AppText.labelMedium.copyWith(
+                                color: AppColors.textColorPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Obx(
+                            () => ElevatedButton.icon(
+                              onPressed:
+                                  controller.isUpdatingDetails.value
+                                      ? null
+                                      : () {
+                                        controller.updateCustomerDetails();
+                                      },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    controller.isUpdatingDetails.value
+                                        ? AppColors.primary.withOpacity(0.5)
+                                        : AppColors.primary,
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 4,
+                                shadowColor: AppColors.primary.withOpacity(0.3),
+                              ),
+                              icon:
+                                  controller.isUpdatingDetails.value
+                                      ? SizedBox.shrink()
+                                      : Icon(Icons.check_rounded, size: 20),
+                              label:
+                                  controller.isUpdatingDetails.value
+                                      ? SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation(
+                                            Colors.white,
+                                          ),
+                                        ),
+                                      )
+                                      : Text(
+                                        'Update',
+                                        style: AppText.labelMedium.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
     );
   }
 
@@ -1079,7 +1308,7 @@ class TicketCreationController extends GetxController {
     super.onInit();
     if (customerId == null) {
       BaseApiService().showSnackbar("Error", "Customer ID is missing.");
-      Get.back();
+      Navigator.of(Get.context!).pop();
       return;
     }
     fetchTicketCategories();

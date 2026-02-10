@@ -695,7 +695,7 @@ class ApiServices {
     try {
       // 📱 Get FCM token from SharedPreferences (it's now async)
       final fcmTokenValue = await AppSharedPref.instance.getFCMToken();
-      
+
       if (fcmTokenValue == null || fcmTokenValue.isEmpty) {
         developer.log(
           'FCM token is null or empty - skipping upload',
@@ -703,22 +703,24 @@ class ApiServices {
         );
         return {'status': 'skipped', 'reason': 'FCM token not available'};
       }
-      
+
       final body = {'fcm_token': fcmTokenValue};
-      
+
       // Retry logic for better reliability in release builds
       http.Response? res;
       int retries = 0;
       const maxRetries = 2;
-      
+
       while (retries < maxRetries) {
         try {
-          res = await _apiClient.post(_fcmToken, body: body).timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException('FCM token upload timeout');
-            },
-          );
+          res = await _apiClient
+              .post(_fcmToken, body: body)
+              .timeout(
+                const Duration(seconds: 10),
+                onTimeout: () {
+                  throw TimeoutException('FCM token upload timeout');
+                },
+              );
           break; // Success, exit retry loop
         } catch (e) {
           retries++;
@@ -729,7 +731,7 @@ class ApiServices {
           await Future.delayed(Duration(milliseconds: 500 * retries));
         }
       }
-      
+
       if (res == null) {
         developer.log(
           'FCM token upload failed - null response',
@@ -1016,7 +1018,10 @@ class ApiServices {
         title: Text('Logout'),
         content: Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(Get.context!).pop(),
+            child: Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: handleLogout,
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),

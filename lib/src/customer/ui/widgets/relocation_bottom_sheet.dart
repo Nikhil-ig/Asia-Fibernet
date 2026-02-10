@@ -114,25 +114,25 @@ class RelocationRequestBottomSheet extends StatelessWidget {
   );
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: 24.h,
-        left: 20.w,
-        right: 20.w,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20.h,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: Offset(0, -5),
-          ),
-        ],
-      ),
-      child: SafeArea(
+    return SingleChildScrollView(
+      child: Container(
+        padding: EdgeInsets.only(
+          top: 24.h,
+          left: 20.w,
+          right: 20.w,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20.h,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30.r)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 20,
+              offset: Offset(0, -5),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,6 +164,16 @@ class RelocationRequestBottomSheet extends StatelessWidget {
               ),
             ),
             SizedBox(height: 24.h),
+
+            // Preferred Shift Date
+            Obx(
+              () => _buildDateField(
+                label: 'Preferred Shift Date *',
+                date: controller.preferredShiftDate.value,
+                onTap: controller.selectDate,
+              ),
+            ),
+            SizedBox(height: 16.h),
             // New Address
             _buildTextField(
               label: 'New Address *',
@@ -173,15 +183,7 @@ class RelocationRequestBottomSheet extends StatelessWidget {
               onChanged: (v) => controller.newAddress.value = v,
               maxLines: 2,
             ),
-            SizedBox(height: 16.h),
-            // Preferred Shift Date
-            Obx(
-              () => _buildDateField(
-                label: 'Preferred Shift Date *',
-                date: controller.preferredShiftDate.value,
-                onTap: controller.selectDate,
-              ),
-            ),
+
             SizedBox(height: 16.h),
             // Relocation Type
             Obx(
@@ -332,33 +334,39 @@ class RelocationRequestBottomSheet extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8.h),
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-            decoration: BoxDecoration(
-              color: Colors.white,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: AppColors.dividerColor),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
               borderRadius: BorderRadius.circular(12.r),
-              border: Border.all(color: AppColors.dividerColor),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  date.isEmpty ? 'Select date' : date,
-                  style: AppText.bodyMedium.copyWith(
-                    color:
-                        date.isEmpty
-                            ? AppColors.textColorHint
-                            : AppColors.textColorPrimary,
-                  ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      date.isEmpty ? 'Select date' : date,
+                      style: AppText.bodyMedium.copyWith(
+                        color:
+                            date.isEmpty
+                                ? AppColors.textColorHint
+                                : AppColors.textColorPrimary,
+                      ),
+                    ),
+                    Icon(
+                      Icons.calendar_today,
+                      color: AppColors.primary,
+                      size: 20.sp,
+                    ),
+                  ],
                 ),
-                Icon(
-                  Icons.calendar_today,
-                  color: AppColors.primary,
-                  size: 20.sp,
-                ),
-              ],
+              ),
             ),
           ),
         ),

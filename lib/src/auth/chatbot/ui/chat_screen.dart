@@ -1,7 +1,8 @@
 ﻿// lib/ui/chat_screen.dart
 import 'dart:convert';
 import 'package:asia_fibernet/src/services/sharedpref.dart';
-import 'package:asia_fibernet/src/theme/colors.dart';
+import 'package:asia_fibernet/src/theme/widgets/app_drawer.dart';
+import 'package:get/get.dart';
 
 import '../widgets/background.dart';
 import 'package:flutter/material.dart';
@@ -25,35 +26,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? _selectedCategory;
   String? _selectedSubCategory;
-  Map<String, List<String>> _apiCategories = {};
-  final String _baseUrl = 'https://asiafibernet.in'; // Base URL for API calls
-  final String? token =
-      // 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJjdXN0b21lcl9pZCI6NCwibW9iaWxlIjoiNTUyMzIzNTY1NiIsImlhdCI6MTc2NzYxNTI3MiwiZXhwIjoxNzY3OTc1MjcyfQ.iQD_OeESMnP85mNoOApdf2hPjNxX85LLznFVkPlr6hM'; // Base URL for API calls
-      AppSharedPref.instance.getToken();
-
-  String generateTicketNo() {
-    final now = DateTime.now();
-    final timePart = _formatDateTime(now);
-    final randPart = (now.millisecondsSinceEpoch % 1000).toString().padLeft(
-      3,
-      '0',
-    );
-    return 'TKT-B-$timePart-$randPart';
-  }
-
-  // String generateTicketNoByTech() {
-  //   final now = DateTime.now();
-  //   final timePart = _formatDateTime(now);
-  //   final randPart = (now.millisecondsSinceEpoch % 1000).toString().padLeft(
-  //         3,
-  //         '0',
-  //       );
-  //   return 'TKT-T-$timePart-$randPart';
-  // }
-
-  String _formatDateTime(DateTime dt) {
-    return "${dt.year % 100}${dt.month.toString().padLeft(2, '0')}${dt.day.toString().padLeft(2, '0')}-${dt.hour.toString().padLeft(2, '0')}${dt.minute.toString().padLeft(2, '0')}${dt.second.toString().padLeft(2, '0')}";
-  }
+  final Map<String, List<String>> _apiCategories = {};
+  final String _baseUrl = 'https://asiafibernet.in';
+  final String? token = AppSharedPref.instance.getToken();
 
   @override
   void initState() {
@@ -109,33 +84,33 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // --------------------------------------------------------------
-  // 2. Send user message
-  // --------------------------------------------------------------
-  void _sendMessage(String text) {
-    if (text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add(_Message(sender: Sender.user, text: text));
-    });
-    _controller.clear();
-
-    if (_activeQuestion?.id == 'agent_leave_message') {
-      _submitAgentMessage(text.trim());
-      return;
-    }
-
-    if (_selectedCategory != null && _activeQuestion == null) {
-      _submitComplaint(text.trim());
-      return;
-    }
-
-    _handleUserInput(text.trim());
+  // Add loading indicator message
+  void _addLoadingMessage() {
+    // setState(() {
+    //   _messages.add(_Message(sender: Sender.bot, isLoading: true, text: ''));
+    // });
     _scrollToBottom();
   }
 
+  // Remove last loading message
+  void _removeLoadingMessage() {
+    if (_messages.isNotEmpty && _messages.last.isLoading) {
+      setState(() {
+        _messages.removeLast();
+      });
+    }
+  }
+
+  // Navigate to Plan screen
+  void _navigateToPlanScreen() {
+    Navigator.of(context).pop(); // Close the chatbot first
+    Future.delayed(Duration(milliseconds: 300), () {
+      Get.toNamed('/bsnl-plans');
+    });
+  }
+
   // --------------------------------------------------------------
-  // 3. Handle user input
+  // 2. Handle user input
   // --------------------------------------------------------------
   void _handleUserInput(String input) {
     // Try to match a quick-reply or typed question
@@ -193,6 +168,11 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    if (text == 'Upgrade/Downgrade Plan') {
+      _navigateToPlanScreen();
+      return;
+    }
+
     if (text == 'Report a Problem') {
       // _handleReportProblem();
       _handleRaiseComplaint();
@@ -230,9 +210,9 @@ class _ChatScreenState extends State<ChatScreen> {
               'All agents are busy at the moment. Would you like to leave a message or get a callback?',
         ),
       );
-      _messages.add(
-        _Message(sender: Sender.bot, text: 'Leave Message', isQuickReply: true),
-      );
+      // _messages.add(
+      //   _Message(sender: Sender.bot, text: 'Leave Message', isQuickReply: true),
+      // );
       _messages.add(
         _Message(
           sender: Sender.bot,
@@ -268,21 +248,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _handleRequestCallback() async {
-    await _submitGenericRequest(
-      'Callback Request',
-      'User requested a callback.',
-    );
+    // await _submitGenericRequest(
+    //   'Callback Request',
+    //   'User requested a callback.',
+    // );
+    makePhoneCall();
   }
 
   Future<void> _submitGenericRequest(
     String category,
     String description,
   ) async {
-    final ticketNo = generateTicketNo();
-    setState(() {
-      _messages.add(_Message(sender: Sender.bot, text: 'Processing...'));
-    });
-    _scrollToBottom();
+    _addLoadingMessage();
 
     try {
       final uri = Uri.parse('$_baseUrl/af/api/raise_complaint.php');
@@ -293,42 +270,122 @@ class _ChatScreenState extends State<ChatScreen> {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          "registered_mobile": "4654654646",
+          'ticket_no': '12345',
+          'registered_mobile': AppSharedPref.instance.getMobileNumber(),
           'category': category,
           'sub_category': 'General',
           'description': description,
-          'ticket_no': ticketNo,
         }),
       );
 
       if (!mounted) return;
-      String msg;
-      print(response.body);
-      if (response.statusCode == 200) {
+
+      String msg = 'Something went wrong. Please try again.';
+      bool isSuccess = false;
+      String ticketNo = '';
+
+      try {
+        final jsonResponse = jsonDecode(response.body);
+        debugPrint('API Response: $jsonResponse');
+
+        // Check if response has status == success
+        if (jsonResponse['status'] == 'success') {
+          isSuccess = true;
+          // Try to get ticket_no if available (for array format)
+          if (jsonResponse is List && jsonResponse.isNotEmpty) {
+            ticketNo = jsonResponse[0]['ticket_no'] ?? '';
+          } else if (jsonResponse['ticket_no'] != null) {
+            ticketNo = jsonResponse['ticket_no'].toString();
+          } else if (jsonResponse['complaint_id'] != null) {
+            // Use complaint_id as fallback
+            ticketNo = jsonResponse['complaint_id'].toString();
+          }
+          debugPrint('Extracted Ticket/Complaint ID: $ticketNo');
+        } else if (jsonResponse['status'] == 'error') {
+          msg =
+              '❌ Error: ${jsonResponse['message'] ?? 'Failed to process request'}';
+        }
+      } catch (e) {
+        debugPrint('Error parsing response: $e');
+        // If response code is 200, try to parse
+        if (response.statusCode == 200) {
+          try {
+            final jsonResponse = jsonDecode(response.body);
+            if (jsonResponse['status'] == 'success') {
+              isSuccess = true;
+              if (jsonResponse['complaint_id'] != null) {
+                ticketNo = jsonResponse['complaint_id'].toString();
+              }
+            }
+          } catch (parseError) {
+            debugPrint('Secondary parse error: $parseError');
+          }
+        }
+      }
+
+      if (isSuccess && ticketNo.isNotEmpty) {
         if (category == 'Callback Request') {
           final agentNum =
               (1000 + (DateTime.now().millisecondsSinceEpoch % 9000))
                   .toString();
           msg =
-              'Success! Your Ticket number is $ticketNo. Agent #$agentNum will call you shortly.';
+              '✅ Success!\n\nYour Ticket: #$ticketNo\nAgent #$agentNum will call you shortly.\n\nThank you for contacting us!';
         } else {
-          msg = 'Success! Your Ticket number is $ticketNo.';
+          msg =
+              '✅ Success!\n\nYour Ticket: #$ticketNo\n\nThank you for reaching out!';
         }
-      } else {
-        msg = 'Something went wrong. Please try again.';
       }
+
+      // Replace the loading message with the actual response
+      _removeLoadingMessage();
       setState(() {
         _messages.add(_Message(sender: Sender.bot, text: msg));
       });
+
+      // If successful, show follow-up options after a delay
+      if (isSuccess && ticketNo.isNotEmpty) {
+        Future.delayed(Duration(milliseconds: 800), () {
+          if (mounted) {
+            setState(() {
+              _messages.add(
+                _Message(
+                  sender: Sender.bot,
+                  text: 'Is there anything else I can help with?',
+                ),
+              );
+              // _messages.add(
+              // _Message(
+              //   sender: Sender.bot,
+              //   text: 'Check Internet Status',
+              //   isQuickReply: true,
+              // ),
+              // );
+              _messages.add(
+                _Message(
+                  sender: Sender.bot,
+                  text: 'Talk to Agent',
+                  isQuickReply: true,
+                ),
+              );
+            });
+            _scrollToBottom();
+          }
+        });
+      }
     } catch (e) {
+      _removeLoadingMessage();
       setState(() {
-        _messages.add(_Message(sender: Sender.bot, text: 'Error: $e'));
+        _messages.add(
+          _Message(
+            sender: Sender.bot,
+            text: '❌ Error: ${e.toString()}\n\nPlease try again later.',
+          ),
+        );
       });
     }
     _scrollToBottom();
-  }
+  } // --------------------------------------------------------------
 
-  // --------------------------------------------------------------
   // 6. Fallback "I need more help"
   // --------------------------------------------------------------
   void _handleFallbackHelp() {
@@ -338,8 +395,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       // Show all initial options again
       const options = [
-        'Check Internet Status',
-        'View My Bill',
         'Upgrade/Downgrade Plan',
         'Report a Problem',
         'Talk to Agent',
@@ -375,11 +430,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // 8. Raise Complaint Flow
   // --------------------------------------------------------------
   Future<void> _handleRaiseComplaint() async {
-    setState(() {
-      _messages.add(
-        _Message(sender: Sender.bot, text: 'Fetching categories...'),
-      );
-    });
+    _addLoadingMessage();
     _scrollToBottom();
 
     List<String> options = [];
@@ -425,6 +476,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (!mounted) return;
+    _removeLoadingMessage();
     final q =
         options.isNotEmpty
             ? Question(
@@ -548,8 +600,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _selectedCategory = null;
       _selectedSubCategory = null;
-      _messages.add(_Message(sender: Sender.bot, text: 'Submitting ticket...'));
     });
+    _addLoadingMessage();
     _scrollToBottom();
 
     try {
@@ -562,47 +614,108 @@ class _ChatScreenState extends State<ChatScreen> {
         },
 
         body: jsonEncode({
+          'ticket_no': '12345',
+          'registered_mobile': AppSharedPref.instance.getMobileNumber(),
           'category': category,
           'sub_category': subCategory,
           'description':
               '$description (Selected: $category${subCategory != 'General' ? " - $subCategory" : ""})',
-          'ticket_no': generateTicketNo(),
         }),
       );
       if (!mounted) return;
 
-      print(
-        "==================_submitComplaint===============\nResponse Status: ${response.statusCode}",
-      );
+      String responseText = 'Failed to create ticket. Please try again later.';
+      bool isSuccess = false;
+      String ticketNo = '';
 
-      final responseText =
-          response.statusCode == 200
-              ? 'Ticket created successfully. An engineer will contact you soon.'
-              : 'Failed to create ticket. Please try again later.';
+      try {
+        final jsonResponse = jsonDecode(response.body);
+        debugPrint('API Response: $jsonResponse');
 
+        // Check if response has status == success
+        if (jsonResponse['status'] == 'success') {
+          isSuccess = true;
+          // Try to get ticket_no if available (for array format)
+          if (jsonResponse is List && jsonResponse.isNotEmpty) {
+            ticketNo = jsonResponse[0]['ticket_no'] ?? '';
+          } else if (jsonResponse['ticket_no'] != null) {
+            ticketNo = jsonResponse['ticket_no'].toString();
+          } else if (jsonResponse['complaint_id'] != null) {
+            // Use complaint_id as fallback
+            ticketNo = jsonResponse['complaint_id'].toString();
+          }
+          debugPrint('Extracted Ticket/Complaint ID: $ticketNo');
+        } else if (jsonResponse['status'] == 'error') {
+          responseText =
+              '❌ Error: ${jsonResponse['message'] ?? 'Failed to create ticket'}';
+        }
+      } catch (e) {
+        debugPrint('Error parsing response: $e');
+        // If response code is 200, try to parse
+        if (response.statusCode == 200) {
+          try {
+            final jsonResponse = jsonDecode(response.body);
+            if (jsonResponse['status'] == 'success') {
+              isSuccess = true;
+              if (jsonResponse['complaint_id'] != null) {
+                ticketNo = jsonResponse['complaint_id'].toString();
+              }
+            }
+          } catch (parseError) {
+            debugPrint('Secondary parse error: $parseError');
+          }
+        }
+      }
+
+      if (isSuccess && ticketNo.isNotEmpty) {
+        responseText =
+            '✅ Success!\n\nYour Ticket: #$ticketNo\n\nAn engineer will contact you shortly.\n\nThank you for reporting this issue!';
+      }
+
+      // Replace loading message with actual response
+      _removeLoadingMessage();
       setState(() {
         _messages.add(_Message(sender: Sender.bot, text: responseText));
       });
+
+      // If successful, show follow-up options after a delay
+      if (isSuccess && ticketNo.isNotEmpty) {
+        Future.delayed(Duration(milliseconds: 800), () {
+          if (mounted) {
+            setState(() {
+              _messages.add(
+                _Message(sender: Sender.bot, text: 'Anything else?'),
+              );
+              _messages.add(
+                _Message(
+                  sender: Sender.bot,
+                  text: 'Check Internet Status',
+                  isQuickReply: true,
+                ),
+              );
+              _messages.add(
+                _Message(
+                  sender: Sender.bot,
+                  text: 'Talk to Agent',
+                  isQuickReply: true,
+                ),
+              );
+            });
+            _scrollToBottom();
+          }
+        });
+      }
     } catch (e) {
+      _removeLoadingMessage();
       setState(() {
-        _messages.add(_Message(sender: Sender.bot, text: 'Error: $e'));
+        _messages.add(
+          _Message(
+            sender: Sender.bot,
+            text: '❌ Error: ${e.toString()}\n\nPlease try again later.',
+          ),
+        );
       });
     }
-
-    setState(() {
-      _messages.add(_Message(sender: Sender.bot, text: 'Anything else?'));
-      _messages.add(
-        _Message(
-          sender: Sender.bot,
-          text: 'Check Internet Status',
-          isQuickReply: true,
-        ),
-      );
-      _messages.add(
-        _Message(sender: Sender.bot, text: 'Talk to Agent', isQuickReply: true),
-      );
-    });
-    _scrollToBottom();
   }
 
   // --------------------------------------------------------------
@@ -611,22 +724,19 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   backgroundColor: const Color(0xFF9C27B0),
-      //   foregroundColor: Colors.white,
-      //   leading: const BackButton(),
-      //   title: const Text('Asia Support'),
-      // ),
       body: MyBackgroundWidget(
         child: Column(
           children: [
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 itemCount: _messages.length,
                 itemBuilder: (context, i) {
                   final m = _messages[i];
+                  // if (m.isLoading) {
+                  //   return const _LoadingBubble();
+                  // }
                   if (m.isQuickReply) {
                     return _QuickReplyButton(
                       text: m.text,
@@ -637,47 +747,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
             ),
-            // _buildInputBar(),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.black12)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                filled: true,
-                fillColor: const Color(0xFFF5F5F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-              ),
-              onSubmitted: _sendMessage,
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.send, color: AppColors.primary),
-            onPressed: () => _sendMessage(_controller.text),
-          ),
-        ],
       ),
     );
   }
@@ -692,11 +763,13 @@ class _Message {
   final Sender sender;
   final String text;
   final bool isQuickReply;
+  final bool isLoading;
 
   const _Message({
     required this.sender,
     required this.text,
     this.isQuickReply = false,
+    this.isLoading = false,
   });
 }
 
@@ -711,33 +784,133 @@ class _ChatBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isBot = message.sender == Sender.bot;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment:
             isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
-        // crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isBot) ...[_BotAvatar(), const SizedBox(width: 10)],
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isBot ? const Color(0xFFF5F5F5) : AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
+                gradient:
+                    isBot
+                        ? LinearGradient(
+                          colors: [Colors.grey.shade100, Colors.grey.shade200],
+                        )
+                        : LinearGradient(
+                          colors: [Colors.blue.shade400, Colors.blue.shade600],
+                        ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isBot ? Colors.grey : Colors.blue).withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Text(
                 message.text,
                 style: TextStyle(
                   color: isBot ? Colors.black87 : Colors.white,
                   fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
                 ),
               ),
             ),
           ),
-          if (!isBot) ...[
-            // const SizedBox(width: 0),
-            // const SizedBox(width: 36, height: 36),
-          ],
+        ],
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------
+// Loading Bubble
+// -----------------------------------------------------------------
+class _LoadingBubble extends StatefulWidget {
+  const _LoadingBubble();
+
+  @override
+  State<_LoadingBubble> createState() => _LoadingBubbleState();
+}
+
+class _LoadingBubbleState extends State<_LoadingBubble>
+    with TickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1400),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          _BotAvatar(),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.grey.shade100, Colors.grey.shade200],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: 40,
+              height: 24,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(3, (index) {
+                  return ScaleTransition(
+                    scale: Tween<double>(begin: 0.8, end: 1.2).animate(
+                      CurvedAnimation(
+                        parent: _controller,
+                        curve: Interval(
+                          index * 0.2,
+                          1.0,
+                          curve: Curves.easeInOut,
+                        ),
+                      ),
+                    ),
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade600,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -751,18 +924,20 @@ class _BotAvatar extends StatelessWidget {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade500, Colors.blue.shade700],
+        ),
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       alignment: Alignment.center,
-      child: const Text(
-        'B',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      ),
+      child: const Icon(Icons.support_agent, color: Colors.white, size: 18),
     );
   }
 }
@@ -780,18 +955,36 @@ class _QuickReplyButton extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: SizedBox(
           width: MediaQuery.of(context).size.width * 0.8,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              side: BorderSide(color: AppColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.blue.shade400, width: 1.5),
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white,
+                      Colors.blue.shade50.withOpacity(0.3),
+                    ],
+                  ),
+                ),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: Colors.blue.shade600,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
             ),
-            onPressed: onTap,
-            child: Text(text),
           ),
         ),
       ),

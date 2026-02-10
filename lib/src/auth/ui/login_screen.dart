@@ -275,6 +275,10 @@ class _MobileNumberInput extends StatelessWidget {
                   maxLength: 10,
                   // 🔒 Only allow digits
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  onChanged: (value) {
+                    // ✅ Clear error when user starts typing
+                    controller.clearError();
+                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your number';
@@ -295,6 +299,32 @@ class _MobileNumberInput extends StatelessWidget {
             ],
           ),
         ),
+        // ✅ Error message display below phone input
+        SizedBox(height: 8.h),
+        Obx(() {
+          if (controller.loginError.value.isEmpty) {
+            return SizedBox(height: 0);
+          }
+          return Row(
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: AppColors.error,
+                size: 16.sp,
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  controller.loginError.value,
+                  style: AppText.bodySmall.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
       ],
     );
   }

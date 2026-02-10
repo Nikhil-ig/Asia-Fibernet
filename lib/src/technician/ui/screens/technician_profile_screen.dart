@@ -1,19 +1,17 @@
 // screens/technician_profile_screen.dart
 
 import 'dart:convert';
+import 'dart:typed_data' show Uint8List;
+import 'dart:io';
 
-import 'package:intl/intl.dart';
-import 'package:animate_do/animate_do.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+import 'package:asia_fibernet/src/services/apis/api_services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:network_info_plus/network_info_plus.dart';
-import 'package:timezone/timezone.dart' as tz;
+import 'package:animate_do/animate_do.dart';
 import '../../../auth/core/controller/binding/login_binding.dart';
 import '../../../auth/ui/login_screen.dart';
 import '../../../services/apis/base_api_service.dart';
@@ -82,25 +80,7 @@ class TechnicianProfileScreen extends StatelessWidget {
             child: IconButton(
               icon: Icon(Iconsax.logout, size: 22),
               onPressed: () {
-                Get.dialog(
-                  AlertDialog(
-                    title: Text('Logout'),
-                    content: Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Get.back(),
-                        child: Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: controller.logOut,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.error,
-                        ),
-                        child: Text('Logout'),
-                      ),
-                    ],
-                  ),
-                );
+                ApiServices().logOutDialog();
               },
             ),
           ),
@@ -235,8 +215,8 @@ class TechnicianProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfilePhoto(String? base64Image) {
-    if (base64Image == null || base64Image.isEmpty) {
+  Widget _buildProfilePhoto(String? photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
       return Container(
         width: 70.w,
         height: 70.w,
@@ -250,8 +230,10 @@ class TechnicianProfileScreen extends StatelessWidget {
     }
 
     try {
-      final String cleanBase64 = base64Image.split(',').last;
-      final bytes = base64Decode(cleanBase64);
+      // ✅ API returns file path like "uploads/profile/profile_1769516848.jpg"
+      // Construct full URL: https://asiafibernet.in/af/api/{photoPath}
+      final String imageUrl = '$photoPath';
+
       return Container(
         width: 70.w,
         height: 70.w,
@@ -259,17 +241,18 @@ class TechnicianProfileScreen extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 3),
           image: DecorationImage(
-            image: MemoryImage(bytes),
+            image: NetworkImage(imageUrl),
             fit: BoxFit.cover,
             onError: (error, stackTrace) {
-              print(
-                "TechnicianProfileScreen's Image Error: $error \nstackTrace: $stackTrace",
-              ); // fallback if image fails
+              debugPrint(
+                "Profile Photo Error: $error \nstackTrace: $stackTrace",
+              );
             },
           ),
         ),
       );
     } catch (e) {
+      debugPrint("Error loading profile photo: $e");
       return Container(
         width: 70.w,
         height: 70.w,
@@ -522,7 +505,6 @@ class TechnicianProfileScreen extends StatelessWidget {
 class TechnicianProfileEditController extends GetxController {
   final TechnicianAPI _api = TechnicianAPI();
   final ImagePicker _picker = ImagePicker();
-  final _prefs = AppSharedPref.instance;
 
   // Reactive variables for form fields
   final contactName = ''.obs;
@@ -543,6 +525,16 @@ class TechnicianProfileEditController extends GetxController {
   final accountNo = ''.obs;
   final dateOfBirth = ''.obs;
   final dateOfJoining = ''.obs;
+
+  // ✅ TextEditingControllers for proper text input handling
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController workPhoneNumberController =
+      TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController bankNameController = TextEditingController();
+  final TextEditingController branchNameController = TextEditingController();
+  final TextEditingController ifscCodeController = TextEditingController();
+  final TextEditingController accountNoController = TextEditingController();
 
   // Reactive variables for images
   final profilePhoto = Rx<Uint8List?>(null);
@@ -566,15 +558,48 @@ class TechnicianProfileEditController extends GetxController {
     }
   }
 
+  @override
+  void onClose() {
+    // ✅ Dispose controllers to prevent memory leaks
+    addressController.dispose();
+    workPhoneNumberController.dispose();
+    emailController.dispose();
+    bankNameController.dispose();
+    branchNameController.dispose();
+    ifscCodeController.dispose();
+    accountNoController.dispose();
+    super.onClose();
+  }
+
   void _loadInitialData(TechnicianProfileModel profile) {
+    // ✅ Load all profile data into observable variables (handle null values)
     contactName.value = profile.contactName;
     companyName.value = profile.companyName;
+    address.value = profile.address ?? '';
+    city.value = profile.city ?? '';
+    state.value = profile.state ?? '';
     workPhoneNumber.value = profile.workPhoneNumber?.toString() ?? '';
     cellPhoneNumber.value = profile.cellPhoneNumber?.toString() ?? '';
     email.value = profile.email ?? '';
     websiteAddress.value = profile.websiteAddress ?? '';
+    technicianName.value = profile.technicianName ?? '';
+    aadharcardNo.value = profile.aadharcardNo ?? '';
+    pancardNo.value = profile.pancardNo ?? '';
+    bankName.value = profile.bankName ?? '';
+    branchName.value = profile.branchName ?? '';
+    ifscCode.value = profile.ifscCode ?? '';
+    accountNo.value = profile.accountNo ?? '';
     dateOfBirth.value = profile.dateOfBirth ?? '';
     dateOfJoining.value = profile.dateOfJoining ?? '';
+
+    // ✅ Set TextEditingController values from profile
+    addressController.text = address.value;
+    workPhoneNumberController.text = workPhoneNumber.value;
+    emailController.text = email.value;
+    bankNameController.text = bankName.value;
+    branchNameController.text = branchName.value;
+    ifscCodeController.text = ifscCode.value;
+    accountNoController.text = accountNo.value;
 
     // Load images from base64 if available
     _loadImageFromBase64(profile.profilePhoto, profilePhoto);
@@ -623,16 +648,7 @@ class TechnicianProfileEditController extends GetxController {
   }
 
   // Convert Uint8List to base64 string for sending to API
-  String? _imageToBase64(Uint8List? imageBytes) {
-    if (imageBytes != null) {
-      // Check if it's already a base64 string (starts with data:image)
-      // This handles cases where the original was base64 and wasn't changed
-      // You might need to adjust this logic based on how you handle unchanged images
-      // For now, we'll assume if it was loaded, it's new and needs encoding
-      return base64Encode(imageBytes);
-    }
-    return null;
-  }
+  // Note: Profile photo is uploaded separately via ApiServices.uploadProfilePhoto()
 
   // Method to save the updated profile
   Future<void> saveProfile() async {
@@ -641,116 +657,167 @@ class TechnicianProfileEditController extends GetxController {
     isSaving.value = true;
 
     try {
-      // 1. Get device and network information
-      final deviceInfo = DeviceInfoPlugin();
-      // final connectivityResult = await Connectivity().checkConnectivity();
-      final networkInfo = NetworkInfo();
-      final wifiName = await networkInfo.getWifiName();
-      final wifiBSSID = await networkInfo.getWifiBSSID();
-      final wifiIP = await networkInfo.getWifiIP();
-      final wifiIPv6 = await networkInfo.getWifiIPv6();
-      final wifiSubmask = await networkInfo.getWifiSubmask();
-      final wifiBroadcast = await networkInfo.getWifiBroadcast();
-      // final wifiGateway = await networkInfo.getWifiGatewayIp();
-
-      // 2. Get location (simplified - request last known or current)
-      Position? position;
-      try {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          // Location services are disabled.
-          print("Location services are disabled.");
-        } else {
-          LocationPermission permission = await Geolocator.checkPermission();
-          if (permission == LocationPermission.denied) {
-            permission = await Geolocator.requestPermission();
-            if (permission == LocationPermission.denied) {
-              print('Location permissions are denied');
-            }
-          }
-
-          if (permission == LocationPermission.deniedForever) {
-            print('Location permissions are permanently denied');
-          } else {
-            position = await Geolocator.getCurrentPosition(
-              desiredAccuracy: LocationAccuracy.medium,
-            );
-          }
-        }
-      } catch (e) {
-        print("Error getting location: $e");
-      }
-
-      // 3. Get timezone
-      final currentTimeZone = tz.local.name;
-
-      // 4. Get customer ID from shared preferences
-      final customerId =
-          _prefs.getUserID().toString(); // Assuming this is the correct ID
-
-      // 5. Prepare request body
+      // ✅ Prepare request body (matching API: techAPI/update_my_profile_tech.php)
       final requestBody = {
-        "customer_id": customerId,
-        "ip_address": wifiIP ?? "N/A",
-        "time_zone": currentTimeZone,
-        "latitude": position?.latitude.toString() ?? "0.0",
-        "longitude": position?.longitude.toString() ?? "0.0",
-        "city_name": city.value, // Use updated city
-        "postal_code": "N/A", // You might want to add a postal code field
-        "device": "Android", // Simplified, could get from deviceInfo
-        "brand": "Generic", // Simplified, could get from deviceInfo
-        "wifi_name": wifiName ?? "N/A",
-        "wifi_bssid": wifiBSSID ?? "N/A",
-        "wifi_ip": wifiIP ?? "N/A",
-        "wifi_ipv6": wifiIPv6 ?? "N/A",
-        "wifi_submask": wifiSubmask ?? "N/A",
-        "wifi_broadcast": wifiBroadcast ?? "N/A",
-        // "wifi_gateway": wifiGateway ?? "N/A",
-        // Add profile fields
-        "contact_name": contactName.value,
-        "company_name": companyName.value,
-        "address": address.value,
-        "state": state.value,
-        "work_phone_number": workPhoneNumber.value,
-        "cell_phone_number": cellPhoneNumber.value,
-        "email": email.value,
-        "website_address": websiteAddress.value,
-        "technician_name": technicianName.value,
-        "aadharcard_no": aadharcardNo.value,
-        "pancard_no": pancardNo.value,
+        // ✅ Core profile fields (required by API)
+        "Address": address.value,
+        "Cellphnumber": cellPhoneNumber.value,
+        "Email": email.value,
+
+        // ✅ Bank details (required by API)
         "bank_name": bankName.value,
-        "branch_name": branchName.value,
-        "ifsc_code": ifscCode.value,
         "account_no": accountNo.value,
-        "date_of_birth": dateOfBirth.value,
-        "date_of_joining": dateOfJoining.value,
-        // Include images if they were selected/changed
-        if (profilePhoto.value != null)
-          "profile_photo": _imageToBase64(profilePhoto.value),
-        if (aadharFront.value != null)
-          "aadhar_front": _imageToBase64(aadharFront.value),
-        if (aadharBack.value != null)
-          "aadhar_back": _imageToBase64(aadharBack.value),
+        "ifsc_code": ifscCode.value,
+        "branch_name": branchName.value,
+
+        // Optional fields that may be supported
+        if (contactName.value.isNotEmpty) "contact_name": contactName.value,
+        if (companyName.value.isNotEmpty) "company_name": companyName.value,
+        if (state.value.isNotEmpty) "state": state.value,
+        if (workPhoneNumber.value.isNotEmpty)
+          "work_phone_number": workPhoneNumber.value,
+        if (websiteAddress.value.isNotEmpty)
+          "website_address": websiteAddress.value,
+        if (technicianName.value.isNotEmpty)
+          "technician_name": technicianName.value,
+        if (aadharcardNo.value.isNotEmpty) "aadharcard_no": aadharcardNo.value,
+        if (pancardNo.value.isNotEmpty) "pancard_no": pancardNo.value,
+        if (dateOfBirth.value.isNotEmpty) "date_of_birth": dateOfBirth.value,
+        if (dateOfJoining.value.isNotEmpty)
+          "date_of_joining": dateOfJoining.value,
+
+        // Don't include images in this request - upload separately
       };
 
-      print("Sending update request with body: $requestBody");
+      debugPrint("📤 Sending profile update request to API: $requestBody");
 
-      // 6. Make API call
+      // 🔌 Make API call to update profile
       final response = await _api.updateProfile(requestBody);
 
       if (response) {
-        // Go back to profile screen
-        Get.back(result: true); // Indicate success if needed
+        debugPrint("✅ Profile updated successfully!");
+
+        // ✅ Upload profile photo separately if changed
+        if (profilePhoto.value != null) {
+          await _uploadProfilePhotoIfChanged();
+        }
+
+        // ✅ Fetch fresh profile data from API
+        debugPrint("🔄 Fetching fresh profile data...");
+        final updatedProfile = await _api.fetchUnifiedProfile();
+
+        if (updatedProfile != null) {
+          debugPrint("✅ Fresh profile data fetched successfully!");
+
+          // ✅ Update the parent controller (TechnicianProfileController)
+          final parentController = Get.find<TechnicianProfileController>();
+          parentController.technicianProfile.value = updatedProfile;
+
+          debugPrint("✅ UI refreshed with new data");
+
+          // ✅ Show success message
+          BaseApiService().showSnackbar(
+            "Success",
+            "Profile updated successfully!",
+            isError: false,
+          );
+
+          // ✅ Navigate back using Navigator (avoid Get.back issues)
+          await Future.delayed(Duration(milliseconds: 500));
+          if (Get.isDialogOpen ?? false) {
+            Navigator.of(Get.context!).pop(true);
+          } else {
+            Navigator.of(Get.context!).pop(true);
+          }
+        } else {
+          debugPrint("⚠️ Failed to fetch updated profile data");
+          BaseApiService().showSnackbar(
+            "Warning",
+            "Profile saved but failed to refresh data",
+            isError: false,
+          );
+          await Future.delayed(Duration(milliseconds: 500));
+          if (Get.isDialogOpen ?? false) {
+            Navigator.of(Get.context!).pop(true);
+          } else {
+            Navigator.of(Get.context!).pop(true);
+          }
+        }
+      } else {
+        debugPrint("❌ Profile update failed");
+        BaseApiService().showSnackbar(
+          "Error",
+          "Failed to update profile. Please try again.",
+          isError: true,
+        );
       }
     } catch (e) {
-      print("Error saving profile: $e");
+      debugPrint("❌ Error saving profile: $e");
       BaseApiService().showSnackbar(
-        "❌ Error",
-        "An error occurred while saving the profile.",
+        "Error",
+        "An error occurred while saving the profile: $e",
         isError: true,
       );
     } finally {
       isSaving.value = false;
+    }
+  }
+
+  // Helper method to get temp directory and save profile photo
+  Future<void> _uploadProfilePhotoIfChanged() async {
+    if (profilePhoto.value == null) return; // No photo to upload
+
+    try {
+      debugPrint("📸 Uploading profile photo...");
+
+      // Get application temporary directory
+      final tempDir = await _getApplicationTempDirectory();
+      final tempFile = File(
+        '${tempDir.path}/profile_photo_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      // Write bytes to temp file
+      await tempFile.writeAsBytes(profilePhoto.value!);
+
+      // Use ApiServices to upload
+      final photoUploaded = await ApiServices().uploadProfilePhoto(tempFile);
+
+      if (photoUploaded) {
+        debugPrint("✅ Profile photo uploaded successfully!");
+      } else {
+        debugPrint("⚠️ Profile updated but photo upload failed");
+        BaseApiService().showSnackbar(
+          "Warning",
+          "Profile updated but photo upload failed",
+          isError: false,
+        );
+      }
+
+      // Clean up temp file
+      try {
+        await tempFile.delete();
+      } catch (e) {
+        debugPrint("Could not delete temp file: $e");
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error uploading profile photo: $e");
+      BaseApiService().showSnackbar(
+        "Warning",
+        "Photo upload failed: $e",
+        isError: false,
+      );
+    }
+  }
+
+  // Get application temp directory
+  Future<Directory> _getApplicationTempDirectory() async {
+    try {
+      // For Android: /data/local/tmp or app cache
+      // For iOS: app documents directory
+      final tempDir = Directory.systemTemp;
+      return tempDir;
+    } catch (e) {
+      return Directory.systemTemp;
     }
   }
 }
@@ -778,16 +845,16 @@ class TechnicianProfileEditScreen extends StatelessWidget {
         centerTitle: true,
         elevation: 0,
         iconTheme: IconThemeData(color: AppColors.backgroundLight),
-        actions: [
-          Obx(
-            () => IconButton(
-              icon: Icon(Iconsax.save_2, size: 22),
-              onPressed:
-                  controller.isSaving.value ? null : controller.saveProfile,
-              tooltip: "Save Profile",
-            ),
-          ),
-        ],
+        // actions: [
+        //   Obx(
+        //     () => IconButton(
+        //       icon: Icon(Iconsax.save_2, size: 22),
+        //       onPressed:
+        //           controller.isSaving.value ? null : controller.saveProfile,
+        //       tooltip: "Save Profile",
+        //     ),
+        //   ),
+        // ],
       ),
       body: Obx(() {
         return SingleChildScrollView(
@@ -807,217 +874,143 @@ class TechnicianProfileEditScreen extends StatelessWidget {
 
                 // Personal Information Card
                 _buildEditableCard("Personal Information", [
-                  _buildTextFormField(
-                    label: "Contact Name",
-                    icon: Iconsax.user,
-                    controller: TextEditingController(
-                      text: controller.contactName.value,
-                    )..addListener(() {
-                      controller.contactName.value =
-                          controller.contactName.value;
-                    }),
-                    validator:
-                        (value) =>
-                            value?.isEmpty ?? true
-                                ? "Enter contact name"
-                                : null,
-                  ),
+                  // _buildTextFormField(
+                  //   label: "Contact Name",
+                  //   icon: Iconsax.user,
+                  //   controller: TextEditingController(
+                  //     text: controller.contactName.value,
+                  //   )..addListener(() {
+                  //     // This context captures the controller
+                  //   }),
+                  //   onChanged: (value) {
+                  //     controller.contactName.value = value;
+                  //   },
+                  //   validator:
+                  //       (value) =>
+                  //           value?.isEmpty ?? true
+                  //               ? "Enter contact name"
+                  //               : null,
+                  // ),
                   _buildTextFormField(
                     label: "Address",
                     icon: Iconsax.location,
-                    controller: TextEditingController(
-                      text: controller.address.value,
-                    )..addListener(() {
-                      controller.address.value = controller.address.value;
-                    }),
+                    controller: controller.addressController,
+                    onChanged: (value) {
+                      controller.address.value = value;
+                    },
                   ),
-                  // _buildTextFormField(
-                  //   label: "City",
-                  //   icon: Iconsax.location,
-                  //   controller: TextEditingController(
-                  //     text: controller.city.value,
-                  //   )..addListener(() {
-                  //     controller.city.value = controller.city.value;
-                  //   }),
-                  // ),
-                  // _buildTextFormField(
-                  //   label: "State",
-                  //   icon: Iconsax.global,
-                  //   controller: TextEditingController(
-                  //     text: controller.state.value,
-                  //   )..addListener(() {
-                  //     controller.state.value = controller.state.value;
-                  //   }),
-                  // ),
                   _buildTextFormField(
-                    label: "Work Phone",
+                    label: "Mobile Number",
                     icon: Iconsax.call,
-                    controller: TextEditingController(
-                      text: controller.workPhoneNumber.value,
-                    )..addListener(() {
-                      controller.workPhoneNumber.value =
-                          controller.workPhoneNumber.value;
-                    }),
+
+                    // controller: TextEditingController(
+                    //   text: controller.cellPhoneNumber.value,
+                    // ),
+                    // onChanged: (value) {
+                    //     controller.cellPhoneNumber.value = value;
+                    //   },
+                    //   keyboardType: TextInputType.phone,
+                    //   validator:
+                    //       (value) =>
+                    //           (value?.isEmpty ?? true)
+                    //               ? "Enter mobile number"
+                    //               : null,
+                    // ),
+                    controller: controller.workPhoneNumberController,
+                    onChanged: (value) {
+                      controller.workPhoneNumber.value = value;
+                      controller.cellPhoneNumber.value = value;
+                    },
                     keyboardType: TextInputType.phone,
                   ),
+                  _buildTextFormField(
+                    label: "Email",
+                    icon: Iconsax.message,
+                    controller: controller.emailController,
+                    onChanged: (value) {
+                      controller.email.value = value;
+                    },
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return "Enter email";
+                      }
+                      if (!GetUtils.isEmail(value ?? '')) {
+                        return "Enter a valid email";
+                      }
+                      return null;
+                    },
+                  ),
                   // _buildTextFormField(
-                  //   label: "Mobile",
+                  //   label: "Work Phone",
                   //   icon: Iconsax.call,
                   //   controller: TextEditingController(
-                  //     text: controller.cellPhoneNumber.value,
-                  //   )..addListener(() {
-                  //     controller.cellPhoneNumber.value =
-                  //         controller.cellPhoneNumber.value;
-                  //   }),
+                  //     text: controller.workPhoneNumber.value,
+                  //   ),
+                  //   onChanged: (value) {
+                  //     controller.workPhoneNumber.value = value;
+                  //   },
                   //   keyboardType: TextInputType.phone,
                   // ),
-                  // _buildTextFormField(
-                  //   label: "Email",
-                  //   icon: Iconsax.message,
-                  //   controller: TextEditingController(
-                  //     text: controller.email.value,
-                  //   )..addListener(() {
-                  //     controller.email.value = controller.email.value;
-                  //   }),
-                  //   keyboardType: TextInputType.emailAddress,
-                  //   validator: (value) {
-                  //     if (value == null || value.isEmpty)
-                  //       return null; // Optional
-                  //     if (!GetUtils.isEmail(value))
-                  //       return "Enter a valid email";
-                  //     return null;
-                  //   },
-                  // ),
-                  // _buildTextFormField(
-                  //   label: "Website",
-                  //   icon: Iconsax.link,
-                  //   controller: TextEditingController(
-                  //     text: controller.websiteAddress.value,
-                  //   )..addListener(() {
-                  //     controller.websiteAddress.value =
-                  //         controller.websiteAddress.value;
-                  //   }),
-                  //   keyboardType: TextInputType.url,
-                  // ),
+                ]),
+                SizedBox(height: 24.h),
+
+                // Bank Details Card
+                _buildEditableCard("Bank Details", [
+                  _buildTextFormField(
+                    label: "Bank Name",
+                    icon: Iconsax.bank,
+                    controller: controller.bankNameController,
+                    onChanged: (value) {
+                      controller.bankName.value = value;
+                    },
+                    validator:
+                        (value) =>
+                            (value?.isEmpty ?? true) ? "Enter bank name" : null,
+                  ),
+                  _buildTextFormField(
+                    label: "Branch Name",
+                    icon: Iconsax.bank,
+                    controller: controller.branchNameController,
+                    onChanged: (value) {
+                      controller.branchName.value = value;
+                    },
+                    validator:
+                        (value) =>
+                            (value?.isEmpty ?? true)
+                                ? "Enter branch name"
+                                : null,
+                  ),
+                  _buildTextFormField(
+                    label: "IFSC Code",
+                    icon: Iconsax.document_code,
+                    controller: controller.ifscCodeController,
+                    onChanged: (value) {
+                      controller.ifscCode.value = value;
+                    },
+                    validator:
+                        (value) =>
+                            (value?.isEmpty ?? true) ? "Enter IFSC code" : null,
+                  ),
+                  _buildTextFormField(
+                    label: "Account Number",
+                    icon: Iconsax.wallet,
+                    controller: controller.accountNoController,
+                    onChanged: (value) {
+                      controller.accountNo.value = value;
+                    },
+                    keyboardType: TextInputType.number,
+                    validator:
+                        (value) =>
+                            (value?.isEmpty ?? true)
+                                ? "Enter account number"
+                                : null,
+                  ),
                 ]),
                 SizedBox(height: 24.h),
 
                 // KYC Details Card
                 // _buildEditableCard("KYC Details", [
-                //   // _buildTextFormField(
-                //   //   label: "Technician Name",
-                //   //   icon: Iconsax.security_card,
-                //   //   controller: TextEditingController(
-                //   //     text: controller.technicianName.value,
-                //   //   )..addListener(() {
-                //   //     controller.technicianName.value =
-                //   //         controller.technicianName.value;
-                //   //   }),
-                //   //   validator:
-                //   //       (value) =>
-                //   //           value?.isEmpty ?? true
-                //   //               ? "Enter technician name"
-                //   //               : null,
-                //   // ),
-                //   // _buildTextFormField(
-                //   //   label: "Aadhaar No.",
-                //   //   icon: Iconsax.security_card,
-                //   //   controller: TextEditingController(
-                //   //     text: controller.aadharcardNo.value,
-                //   //   )..addListener(() {
-                //   //     controller.aadharcardNo.value =
-                //   //         controller.aadharcardNo.value;
-                //   //   }),
-                //   //   keyboardType: TextInputType.number,
-                //   //   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                //   // ),
-                //   // _buildTextFormField(
-                //   //   label: "PAN No.",
-                //   //   icon: Iconsax.security_card,
-                //   //   controller: TextEditingController(
-                //   //     text: controller.pancardNo.value,
-                //   //   )..addListener(() {
-                //   //     controller.pancardNo.value = controller.pancardNo.value;
-                //   //   }),
-                //   // ),
-                //   // SizedBox(height: 20.h),
-                //   // // Aadhaar Images
-                //   // _buildImageSection(
-                //   //   "Aadhaar Front",
-                //   //   controller.aadharFront.value,
-                //   //   controller.pickAadharFront,
-                //   //   Iconsax.document,
-                //   // ),
-                //   // SizedBox(height: 16.h),
-                //   // _buildImageSection(
-                //   //   "Aadhaar Back",
-                //   //   controller.aadharBack.value,
-                //   //   controller.pickAadharBack,
-                //   //   Iconsax.document,
-                //   // ),
-                //   // SizedBox(height: 20.h),
-                //   Text(
-                //     "Bank Details",
-                //     style: AppText.labelLarge.copyWith(
-                //       color: AppColors.textColorPrimary,
-                //     ),
-                //   ),
-                //   SizedBox(height: 12.h),
-                //   _buildTextFormField(
-                //     label: "Bank Name",
-                //     icon: Iconsax.bank,
-                //     controller: TextEditingController(
-                //       text: controller.bankName.value,
-                //     )..addListener(() {
-                //       controller.bankName.value = controller.bankName.value;
-                //     }),
-                //   ),
-                //   _buildTextFormField(
-                //     label: "Branch",
-                //     icon: Iconsax.bank,
-                //     controller: TextEditingController(
-                //       text: controller.branchName.value,
-                //     )..addListener(() {
-                //       controller.branchName.value = controller.branchName.value;
-                //     }),
-                //   ),
-                //   _buildTextFormField(
-                //     label: "IFSC Code",
-                //     icon: Iconsax.document_code,
-                //     controller: TextEditingController(
-                //       text: controller.ifscCode.value,
-                //     )..addListener(() {
-                //       controller.ifscCode.value = controller.ifscCode.value;
-                //     }),
-                //   ),
-                //   _buildTextFormField(
-                //     label: "Account No.",
-                //     icon: Iconsax.wallet,
-                //     controller: TextEditingController(
-                //       text: controller.accountNo.value,
-                //     )..addListener(() {
-                //       controller.accountNo.value = controller.accountNo.value;
-                //     }),
-                //     keyboardType: TextInputType.number,
-                //     // ),
-                //     // SizedBox(height: 20.h),
-                //     // _buildDateField(
-                //     //   label: "Date of Birth",
-                //     //   icon: Iconsax.calendar,
-                //     //   initialValue: controller.dateOfBirth.value,
-                //     //   onDateSelected:
-                //     //       (dateString) =>
-                //     //           controller.dateOfBirth.value = dateString,
-                //     // ),
-                //     // _buildDateField(
-                //     //   label: "Date of Joining",
-                //     //   icon: Iconsax.calendar,
-                //     //   initialValue: controller.dateOfJoining.value,
-                //     //   onDateSelected:
-                //     //       (dateString) =>
-                //     //           controller.dateOfJoining.value = dateString,
-                //   ),
-                // ]),
                 SizedBox(height: 24.h),
                 // Save Button at the bottom
                 SizedBox(
@@ -1028,19 +1021,19 @@ class TechnicianProfileEditScreen extends StatelessWidget {
                         controller.isSaving.value
                             ? null
                             : controller.saveProfile,
-                    icon:
-                        controller.isSaving.value
-                            ? SizedBox(
-                              width: 20.w,
-                              height: 20.w,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.w,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                            : Icon(Iconsax.save_2, size: 20.w),
+                    // icon:
+                    //     controller.isSaving.value
+                    //         ? SizedBox(
+                    //           width: 20.w,
+                    //           height: 20.w,
+                    //           child: CircularProgressIndicator(
+                    //             strokeWidth: 2.w,
+                    //             valueColor: AlwaysStoppedAnimation<Color>(
+                    //               Colors.white,
+                    //             ),
+                    //           ),
+                    //         )
+                    //         : Icon(Iconsax.save_2, size: 20.w),
                     label: Text(
                       controller.isSaving.value ? "Saving..." : "Save Profile",
                       style: AppText.button.copyWith(color: Colors.white),
@@ -1109,11 +1102,15 @@ class TechnicianProfileEditScreen extends StatelessWidget {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    Function(String)? onChanged,
   }) {
     return Padding(
       padding: EdgeInsets.only(bottom: 16.h),
       child: TextFormField(
         controller: controller,
+        onChanged: onChanged,
+        textDirection: TextDirection.ltr,
+        textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: AppText.labelMedium.copyWith(
@@ -1139,76 +1136,6 @@ class TechnicianProfileEditScreen extends StatelessWidget {
         validator: validator,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
-      ),
-    );
-  }
-
-  Widget _buildDateField({
-    required String label,
-    required IconData icon,
-    required String initialValue,
-    required Function(String) onDateSelected,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 16.h),
-      child: InkWell(
-        onTap: () async {
-          DateTime? pickedDate = await showDatePicker(
-            context: Get.context!,
-            initialDate:
-                initialValue.isNotEmpty
-                    ? DateFormat('yyyy-MM-dd').parse(initialValue)
-                    : DateTime.now(),
-            firstDate: DateTime(1900),
-            lastDate: DateTime(2100),
-          );
-          if (pickedDate != null) {
-            String formattedDate = DateFormat('yyyy-MM-dd').format(pickedDate);
-            onDateSelected(formattedDate);
-          }
-        },
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: label,
-            labelStyle: AppText.labelMedium.copyWith(
-              color: AppColors.textColorSecondary,
-            ),
-            prefixIcon: Icon(icon, size: 20.w, color: AppColors.primary),
-            filled: true,
-            fillColor: AppColors.inputBackground,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.dividerColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.dividerColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12.r),
-              borderSide: BorderSide(color: AppColors.primary, width: 2.w),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                initialValue.isNotEmpty ? initialValue : "Select Date",
-                style: AppText.bodyMedium.copyWith(
-                  color:
-                      initialValue.isNotEmpty
-                          ? AppColors.textColorPrimary
-                          : AppColors.textColorHint,
-                ),
-              ),
-              Icon(
-                Iconsax.arrow_down_2,
-                size: 16.w,
-                color: AppColors.textColorHint,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

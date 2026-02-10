@@ -1288,12 +1288,13 @@ class AddExpenseBottomSheet extends StatelessWidget {
           ),
           SizedBox(height: 8.sp),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.sp),
+            padding: EdgeInsets.symmetric(horizontal: 8.sp),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12.r),
               border: Border.all(color: Colors.grey.shade300),
             ),
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               value: value,
               items:
                   items.map((item) {

@@ -50,7 +50,7 @@ class SignUpScreen extends GetView<SignUpController> {
                           Icons.arrow_back_ios,
                           color: AppColors.backgroundLight,
                         ),
-                        onPressed: () => Get.back(),
+                        onPressed: () => Navigator.of(Get.context!).pop(),
                       ),
                     ),
                     flexibleSpace: FlexibleSpaceBar(

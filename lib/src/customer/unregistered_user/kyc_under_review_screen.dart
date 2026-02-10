@@ -1260,7 +1260,7 @@ class PlanDetailsDialog extends StatelessWidget {
                     //       child: ElevatedButton(
                     //         onPressed: () {
                     //           // Handle plan selection
-                    //           Get.back();
+                    //           Navigator.of(Get.context!).pop();
                     //           BaseApiService().showSnackbar(
                     //             'Plan Selected',
                     //             '${plan.planName} has been selected',

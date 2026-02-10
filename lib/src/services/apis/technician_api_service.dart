@@ -1,9 +1,11 @@
 // services/apis/technician_api.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:asia_fibernet/src/services/sharedpref.dart';
 import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_model.dart';
 import 'package:flutter/material.dart' show debugPrint;
+import 'package:http/http.dart' as http;
 
 import '../../technician/core/models/customer_model.dart';
 // import '../../technician/core/models/relocation_ticket_model.dart';
@@ -76,6 +78,12 @@ class TechnicianAPI extends BaseApiService {
   static const String _fetchMyReferral = "fetch_my_referral_tech.php";
   static const String _fetchWorkArea = "fetch_work_area_tech.php";
   static const String _getLoginHistory = "get_login_history_tech.php";
+
+  // Call Customer
+  static const String _callCustomer = "call_customer.php";
+
+  // Raise/Re-raise Complaint
+  static const String _reriseComplaint = "rerise_complain.php";
 
   // ————————————————————————
   // 🔹 Dashboard & Profile
@@ -993,6 +1001,124 @@ class TechnicianAPI extends BaseApiService {
     } catch (e) {
       debugPrint('❌ Error updating ticket status: $e');
       rethrow;
+    }
+  }
+
+  // ————————————————————————
+  // 🔹 Call Customer
+  // ————————————————————————
+
+  /// 📞 Send call request to customer from technician
+  /// API Endpoint: {{base_url}}/af/api/call_customer.php
+  /// Parameters: {tech_id, mobile_number, device}
+  /// Content-Type: application/x-www-form-urlencoded
+  /// After calling this API, the call comes from the server
+  Future<Map<String, dynamic>?> callCustomer({required String mobileNo}) async {
+    try {
+      final technicianId = AppSharedPref.instance.getUserID();
+      final token = AppSharedPref.instance.getToken();
+      final baseUrl = BaseApiService(BaseApiService.api).baseUrl;
+
+      debugPrint('📞 CALLING CUSTOMER');
+      debugPrint('Endpoint: $_callCustomer');
+      debugPrint('Technician ID: $technicianId');
+      debugPrint('Customer Mobile: $mobileNo');
+
+      final Uri uri = Uri.parse('$baseUrl$_callCustomer');
+
+      final formData = {
+        'tech_id': technicianId.toString(),
+        'mobile_number': mobileNo,
+        'device': 'app',
+      };
+
+      debugPrint('📋 Form Data: $formData');
+      debugPrint('📍 URL: $uri');
+
+      final res = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          if (token != null && token != 'Guest')
+            'Authorization': 'Bearer $token',
+        },
+        body: formData,
+      );
+
+      debugPrint('Response Status: ${res.statusCode}');
+      debugPrint('Response Body: ${res.body}');
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body) as Map<String, dynamic>;
+        return json;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error calling customer: $e');
+      return null;
+    }
+  }
+
+  // ————————————————————————
+  // 🔹 Raise/Re-raise Complaint
+  // ————————————————————————
+
+  /// 🚨 Re-raise a resolved complaint/ticket
+  /// API Endpoint: {{base_url}}/af/api/rerise_complain.php
+  /// Used when a technician needs to reopen a closed ticket
+  Future<bool> reriseComplaint({
+    required String mobile,
+    required String title,
+    required String subCategory,
+    String? description,
+    File? image,
+    int assignBy = 1,
+    int? assignTo,
+    String status = "Open",
+  }) async {
+    final customerId = AppSharedPref.instance.getUserID();
+    if (customerId == null) {
+      _apiClient.unauthorized();
+      return false;
+    }
+
+    try {
+      debugPrint('🚨 RE-RAISING COMPLAINT');
+      debugPrint('Endpoint: $_reriseComplaint');
+      debugPrint('Customer Mobile: $mobile');
+      debugPrint('Title: $title');
+
+      final imageBase64 = await _apiClient.fileToBase64(image);
+      final ticketNo = _apiClient.generateTicketNo();
+
+      final body = {
+        'id': customerId,
+        'registered_mobile': mobile,
+        'ticket_no': ticketNo,
+        'category': title,
+        'sub_category': subCategory,
+        'description': description ?? "N/A",
+        'image_base64': imageBase64 ?? "",
+        'status': status,
+        'customer_id': customerId,
+        'technician': 'Rahul Patil (Dummy)',
+      };
+
+      debugPrint('📋 Request Body: $body');
+
+      final res = await BaseApiService().post(_reriseComplaint, body: body);
+
+      debugPrint('Response Status: ${res.statusCode}');
+      debugPrint('Response Body: ${res.body}');
+
+      return _apiClient.handleSuccessResponse(
+        res,
+        "Complaint $ticketNo raised successfully!",
+      );
+    } catch (e) {
+      if (e.toString().contains('Unauthorized: No token')) return false;
+      debugPrint('❌ Error re-raising complaint: $e');
+      return false;
     }
   }
 }

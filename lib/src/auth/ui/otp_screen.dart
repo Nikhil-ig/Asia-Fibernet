@@ -117,7 +117,7 @@ class OTPScreen extends GetView<OTPController> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => Get.back(),
+          onTap: () => Navigator.of(Get.context!).pop(),
           child: Container(
             width: 44.w,
             height: 44.h,

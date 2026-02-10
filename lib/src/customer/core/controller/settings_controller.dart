@@ -214,7 +214,8 @@ class SettingsController extends GetxController {
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: () => Get.back(),
+                                onPressed:
+                                    () => Navigator.of(Get.context!).pop(),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
@@ -285,7 +286,7 @@ class SettingsController extends GetxController {
                                           ftthNo: ftthCtrl.text,
                                         );
                                     if (success) {
-                                      Get.back();
+                                      Navigator.of(Get.context!).pop();
                                       _showDisconnectionSuccess();
                                     }
                                   }
@@ -346,61 +347,171 @@ class SettingsController extends GetxController {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: AppText.labelSmall.copyWith(color: AppColors.textColorPrimary),
-        ),
-        SizedBox(height: 8),
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: AppText.labelSmall.copyWith(
+                color: AppColors.textColorPrimary,
+              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  margin: EdgeInsets.only(left: 16),
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: AppColors.primary, size: 18),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    maxLines: maxLines,
-                    enabled: onTap == null,
-                    decoration: InputDecoration(
-                      hintText: hint,
-                      border: InputBorder.none,
-                      hintStyle: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14.sp,
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, child) {
+                if (onTap != null && value.text.isEmpty) {
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.redAccent.withOpacity(0.3),
+                        width: 1,
                       ),
                     ),
-                  ),
-                ),
-                if (onTap != null)
-                  Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: Icon(Iconsax.calendar, color: Colors.grey.shade400),
-                  ),
-              ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Iconsax.warning_2,
+                          color: Colors.redAccent,
+                          size: 12.sp,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Required',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 10.sp,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return SizedBox.shrink();
+              },
             ),
-          ),
+          ],
+        ),
+        SizedBox(height: 8),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, child) {
+            final isEmpty = value.text.isEmpty;
+            final hasWarning = onTap != null && isEmpty;
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      hasWarning
+                          ? Colors.redAccent.withOpacity(0.5)
+                          : Colors.grey.shade300,
+                  width: hasWarning ? 1.5 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        hasWarning
+                            ? Colors.redAccent.withOpacity(0.1)
+                            : Colors.black.withOpacity(0.05),
+                    blurRadius: hasWarning ? 6 : 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    margin: EdgeInsets.only(left: 16),
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color:
+                          hasWarning
+                              ? Colors.redAccent.withOpacity(0.1)
+                              : AppColors.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: hasWarning ? Colors.redAccent : AppColors.primary,
+                      size: 18,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child:
+                        onTap != null
+                            ? Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  onTap();
+                                },
+                                child: ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: controller,
+                                  builder: (context, value, child) {
+                                    return Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 14,
+                                        horizontal: 0,
+                                      ),
+                                      child: Text(
+                                        value.text.isNotEmpty
+                                            ? value.text
+                                            : hint,
+                                        style: TextStyle(
+                                          color:
+                                              value.text.isEmpty
+                                                  ? Colors.grey.shade500
+                                                  : AppColors.textColorPrimary,
+                                          fontSize: 14.sp,
+                                          fontWeight:
+                                              value.text.isNotEmpty
+                                                  ? FontWeight.w500
+                                                  : FontWeight.normal,
+                                        ),
+                                        maxLines: maxLines,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            )
+                            : TextField(
+                              controller: controller,
+                              maxLines: maxLines,
+                              decoration: InputDecoration(
+                                hintText: hint,
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 14.sp,
+                                ),
+                              ),
+                            ),
+                  ),
+                  if (onTap != null)
+                    Padding(
+                      padding: EdgeInsets.only(right: 16),
+                      child: Icon(
+                        Iconsax.calendar,
+                        color:
+                            hasWarning
+                                ? Colors.redAccent
+                                : Colors.grey.shade400,
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -541,7 +652,7 @@ class SettingsController extends GetxController {
                   ],
                 ),
                 child: ElevatedButton(
-                  onPressed: () => Get.back(),
+                  onPressed: () => Navigator.of(Get.context!).pop(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -716,7 +827,7 @@ class SettingsController extends GetxController {
                               ],
                             ),
                             child: ElevatedButton(
-                              onPressed: () => Get.back(),
+                              onPressed: () => Navigator.of(Get.context!).pop(),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,

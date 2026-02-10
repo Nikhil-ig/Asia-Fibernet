@@ -1,5 +1,4 @@
 // models/technician_model.dart (or consider renaming to customer_model.dart if it represents customer data)
-import '../../../services/apis/base_api_service.dart';
 
 class TechnicianModel {
   // Consider renaming if this represents customer data fetched by technician
@@ -100,13 +99,13 @@ class TechnicianModel {
       city: json['City'] as String? ?? '',
       state: json['State'] as String? ?? '',
       zipCode: json['ZipCode'] as String?,
-      workPhone: (json['Workphnumber'] as num?)?.toInt(), // Changed parsing
-      cellPhone:
-          (json['Cellphnumber'] as num?)
-              ?.toInt(), // Changed parsing - Consider renaming
-      otherPhone:
-          (json['Otherphnumber'] as num?)
-              ?.toInt(), // Changed parsing - Consider renaming
+      workPhone: _parsePhone(json['Workphnumber']), // Changed parsing
+      cellPhone: _parsePhone(
+        json['Cellphnumber'],
+      ), // Changed parsing - Consider renaming
+      otherPhone: _parsePhone(
+        json['Otherphnumber'],
+      ), // Changed parsing - Consider renaming
       email: json['Email'] as String?,
       website: json['WebsiteAddress'] as String?,
       creationDate: json['CreationDate'] as String? ?? '',
@@ -139,10 +138,33 @@ class TechnicianModel {
       // Prepend base URL if it's just a path
       if (!profilePhoto!.startsWith('http://') &&
           !profilePhoto!.startsWith('https://')) {
-        return '${BaseApiService.api}$profilePhoto'; // Use correct base URL
+        return 'https://asiafibernet.in/af/$profilePhoto'; // Use correct base URL
       }
       return profilePhoto!; // Return the full URL if it already is one
     }
     return 'https://asiafibernet.com/assets/images/technician.png'; // Default fallback
+  }
+
+  /// Helper method to safely parse phone numbers from various formats
+  static int? _parsePhone(dynamic value) {
+    if (value == null || value == '') {
+      return null;
+    }
+
+    try {
+      if (value is int) {
+        return value;
+      } else if (value is num) {
+        return value.toInt();
+      } else if (value is String) {
+        if (value.isEmpty) return null;
+        return int.parse(value);
+      }
+    } catch (e) {
+      print("❌ Error parsing phone: $value - $e");
+      return null;
+    }
+
+    return null;
   }
 }

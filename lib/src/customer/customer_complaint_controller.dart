@@ -35,6 +35,7 @@ class ComplaintController extends GetxController {
   // With separate loading flags
   final RxBool isComplaintsLoading = true.obs;
   final RxBool isCategoriesLoading = true.obs;
+  final RxBool isSubmittingComplaint = false.obs;
   final Rx<File?> uploadedImage = Rx<File?>(null);
   final ticketCategories = <CategoryData>[].obs;
 
@@ -173,33 +174,50 @@ class ComplaintController extends GetxController {
       return;
     }
 
-    final String? mobile = await AppSharedPref.instance.getMobileNumber();
-    if (mobile == null) {
+    final String? mobile = AppSharedPref.instance.getMobileNumber();
+    // ✅ Check if mobile is null OR empty
+    if (mobile == null || mobile.isEmpty) {
       BaseApiService().showSnackbar("Error", "Mobile number not found");
       return;
     }
 
-    final success = await apiServices.raiseComplaint(
-      mobile: mobile,
-      title: category,
-      subCategory: subCategory,
-      description: description!,
-      image: image,
-    );
+    // ✅ SET LOADING STATE
+    isSubmittingComplaint.value = true;
 
-    if (success) {
-      await fetchComplaints();
-      NotificationHelper.showNotification(
-        title: "Complaint Submitted",
-        body:
-            "Your request has been successfully submitted. We'll review it shortly.",
+    try {
+      final success = await apiServices.raiseComplaint(
+        mobile: mobile,
+        title: category,
+        subCategory: subCategory,
+        description: description!,
+        image: image,
       );
-      uploadedImage.value = null;
-      Get.back();
-      BaseApiService().showSnackbar(
-        "Success",
-        "Your complaint has been submitted!",
-      );
+
+      if (success) {
+        await fetchComplaints();
+        NotificationHelper.showNotification(
+          title: "Complaint Submitted",
+          body:
+              "Your request has been successfully submitted. We'll review it shortly.",
+        );
+        uploadedImage.value = null;
+        BaseApiService().showSnackbar(
+          "Success",
+          "Your complaint has been submitted!",
+        );
+        // ✅ FIXED: Use GetX navigation with a small delay to ensure overlay is ready
+        await Future.delayed(const Duration(milliseconds: 500));
+        try {
+          Navigator.of(Get.context!).pop();
+        } catch (e) {
+          // Fallback: If context is not available, use GetX
+          debugPrint("Navigator pop failed, using GetX: $e");
+          Get.back();
+        }
+      }
+    } finally {
+      // ✅ RESET LOADING STATE
+      isSubmittingComplaint.value = false;
     }
   }
 
@@ -412,7 +430,7 @@ Future<void> showRatingDialog(context, ComplaintViewModel complaint) async {
       );
 
       if (success) {
-        // Get.back(); // Close the bottom sheet
+        // Navigator.of(Get.context!).pop(); // Close the bottom sheet
         Navigator.pop(context);
         Get.find<ComplaintController>()
             .fetchComplaints(); // ✅ Uses existing instance

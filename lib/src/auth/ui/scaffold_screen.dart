@@ -55,7 +55,7 @@ class ScaffoldController extends GetxController {
   void switchAccount(DisplayAccount account) {
     // If the selected account is already the current one, do nothing.
     // if (account.id == currentAccount.value?.id) {
-    //   Get.back();
+    //   Navigator.of(Get.context!).pop();
     //   return;
     // }
     apiServices.switchAccount(id: account.id);
@@ -76,7 +76,7 @@ class ScaffoldController extends GetxController {
 
     // For now, we just close the bottom sheet. The UI won't update to the new user
     // without a full data refresh.
-    Get.back();
+    Navigator.of(Get.context!).pop();
   }
 
   Future<void> fetchcustomerDetails() async {

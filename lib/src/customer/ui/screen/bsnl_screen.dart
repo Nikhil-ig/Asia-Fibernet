@@ -234,7 +234,7 @@ class _PremiumBsnlPlansScreenState extends State<PremiumBsnlPlansScreen>
       leading: Obx(() {
         return ScaffoldController().currentIndex.value == 1
             ? IconButton(
-              onPressed: () => Get.back(),
+              onPressed: () => Navigator.of(Get.context!).pop(),
               icon: Icon(
                 Icons.arrow_back_ios_new_rounded,
                 color: AppColors.backgroundLight,
@@ -875,7 +875,9 @@ class _PremiumBsnlPlansScreenState extends State<PremiumBsnlPlansScreen>
                   );
                 } finally {
                   // Always dismiss the loading dialog
-                  Get.back(); // This will close the dialog shown by _showRequestSendingDialog
+                  Navigator.of(
+                    Get.context!,
+                  ).pop(); // This will close the dialog shown by _showRequestSendingDialog
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -908,7 +910,7 @@ class _PremiumBsnlPlansScreenState extends State<PremiumBsnlPlansScreen>
           //   width: double.infinity,
           //   child: OutlinedButton(
           //     onPressed: () {
-          //       Get.back();
+          //       Navigator.of(Get.context!).pop();
           //       BaseApiService().showSnackbar(
           //         'Info',
           //         'Direct subscription will be available soon.',

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'app_drawer.dart';
 
 class TechnicianTaskCard extends StatefulWidget {
   final Map<String, dynamic> ticket;
@@ -180,9 +183,9 @@ class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
     bool isLatest = false,
   }) {
     final stepStatus = step['status'] ?? '—';
-    final lat = step['lat'] ?? step['latitude'];
-    final long = step['long'] ?? step['longitude'];
     final time = _formatDateTime(step['date_time']);
+    final technicianPhone = widget.ticket['technician_phone'];
+    final isAssigned = stepStatus.toLowerCase() == 'assigned';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -210,43 +213,69 @@ class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  stepStatus,
-                  style: TextStyle(
-                    fontWeight: isLatest ? FontWeight.w700 : FontWeight.w600,
-                    fontSize: isLatest ? 14 : 13,
-                    color: isLatest ? Colors.black87 : Colors.grey[700],
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      stepStatus,
+                      style: TextStyle(
+                        fontWeight:
+                            isLatest ? FontWeight.w700 : FontWeight.w600,
+                        fontSize: isLatest ? 14 : 13,
+                        color: isLatest ? Colors.black87 : Colors.grey[700],
+                      ),
+                    ),
+                    // Call button for Assigned status
+                    if (isAssigned)
+                      GestureDetector(
+                        onTap: () => makePhoneCall(),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 6.h,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.green.shade400,
+                                Colors.green.shade600,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.call, size: 16, color: Colors.white),
+                              SizedBox(width: 6.w),
+                              Text(
+                                'Call',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   time,
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
-                // if (lat != null &&
-                //     long != null &&
-                //     lat is String &&
-                //     lat != '0.00')
-                //   Padding(
-                //     padding: const EdgeInsets.only(top: 4),
-                //     child: Text.rich(
-                //       TextSpan(
-                //         children: [
-                //           const TextSpan(
-                //             text: '📍 ',
-                //             style: TextStyle(color: Colors.grey),
-                //           ),
-                //           TextSpan(
-                //             text: 'Lat: $lat, Long: $long',
-                //             style: const TextStyle(
-                //               fontSize: 11,
-                //               color: Colors.grey,
-                //             ),
-                //           ),
-                //         ],
-                //       ),
-                //     ),
-                //   ),
               ],
             ),
           ),

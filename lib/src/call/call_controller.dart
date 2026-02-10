@@ -17,8 +17,7 @@ class CallController extends GetxController {
 
   final String url =
       'https://my.office24by7.com/v1/communication/API/clickToCall';
-  final String apiKey =
-      'dc0e6bb8-da5a-44c0-a57d-2fedaad2417e';
+  final String apiKey = 'dc0e6bb8-da5a-44c0-a57d-2fedaad2417e';
   final String agentId = 'Asiafibernet2';
 
   Timer? _callTimer;
@@ -109,8 +108,7 @@ class CallController extends GetxController {
       var request = http.MultipartRequest('POST', Uri.parse(url));
       request.fields['agentloginid'] = agentId;
       request.fields['customernumber'] = customerNumber;
-      request.fields['servicenumber'] =
-          serviceNumber ?? '08071511XXX';
+      request.fields['servicenumber'] = serviceNumber ?? '08071511XXX';
       request.fields['referencestate'] = referenceState ?? 'test321';
       request.fields['format'] = 'json';
 
@@ -133,10 +131,12 @@ class CallController extends GetxController {
             duration: Duration(seconds: 2),
           );
 
-          Get.to(() => CallScreen(
-            customerName: customerName ?? 'Unknown Customer',
-            customerNumber: customerNumber ?? 'Unknown Number',
-          ));
+          Get.to(
+            () => CallScreen(
+              customerName: customerName ?? 'Unknown Customer',
+              customerNumber: customerNumber ?? 'Unknown Number',
+            ),
+          );
         } else {
           throw Exception(jsonResponse['message'] ?? 'Call initiation failed');
         }
@@ -179,10 +179,10 @@ class CallController extends GetxController {
 
     Future.delayed(Duration(seconds: 2), () {
       if (Get.isBottomSheetOpen == true) {
-        Get.back();
+        Navigator.of(Get.context!).pop();
       }
       if (Get.currentRoute == '/call') {
-        Get.back();
+        Navigator.of(Get.context!).pop();
       }
       callStatus.value = CallStatus.idle;
     });

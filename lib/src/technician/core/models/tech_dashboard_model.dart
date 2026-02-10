@@ -38,6 +38,7 @@ class Data {
   final String? accountType;
   final String contactName;
   final String? companyName;
+  final String? profilePhoto;
   final String? address;
   final String city;
   final String state;
@@ -60,6 +61,7 @@ class Data {
     this.accountType,
     required this.contactName,
     this.companyName,
+    this.profilePhoto,
     this.address,
     required this.city,
     required this.state,
@@ -86,6 +88,7 @@ class Data {
       accountType: json['AccountType'] as String?,
       contactName: json['ContactName'] as String? ?? 'N/A',
       companyName: (json['CompanyName'] as String?)?.trim(),
+      profilePhoto: json['profile_photo'] as String?,
       address: (json['Address'] as String?)?.trim(),
       city: json['City'] as String? ?? 'N/A',
       state: json['State'] as String? ?? 'N/A',

@@ -346,7 +346,7 @@ class WireInstallationSubmissionScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Get.back(),
+            onPressed: () => Navigator.of(Get.context!).pop(),
             icon: Icon(
               Icons.arrow_back_ios_rounded,
               color: Colors.white,

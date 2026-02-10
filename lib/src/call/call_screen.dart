@@ -395,7 +395,7 @@ class CallScreen extends StatelessWidget {
             ),
             SizedBox(height: 20),
             TextButton(
-              onPressed: () => Get.back(),
+              onPressed: () => Navigator.of(Get.context!).pop(),
               child: Text('Close', style: TextStyle(color: Colors.blue)),
             ),
           ],

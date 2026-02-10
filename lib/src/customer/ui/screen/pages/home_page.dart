@@ -39,6 +39,8 @@ class HomeController extends GetxController {
   final planRequestStatus = Rx<PlanRequestStatusModel?>(null);
   final isFetchingPlanStatus = false.obs;
   final ticketDashboardTaskToday = Rx<List?>(null);
+  final disconnectionStatus = Rx<Map<String, dynamic>?>(null);
+  final isDisconnectionLoading = false.obs;
   Timer? _refreshTimer;
 
   @override
@@ -47,6 +49,7 @@ class HomeController extends GetxController {
     ScaffoldController().fetchcustomerDetails();
     fetchCustomerData();
     fetchRelocationStatus();
+    fetchDisconnectionStatus();
     // ticketDashboardTaskToday.value =
     //     await apiServices.fetchCustomerTicketDashboardToday();
   }
@@ -79,6 +82,7 @@ class HomeController extends GetxController {
       await fetchPlanRequestStatus(userId);
     } catch (e) {
       // BaseApiService().showSnackbar("Error", "Network issue: $e");
+      print("Error in fetchCustomerData: $e");
     } finally {
       isLoading.value = false;
     }
@@ -126,11 +130,71 @@ class HomeController extends GetxController {
     }
   }
 
+  Future<void> fetchDisconnectionStatus() async {
+    isDisconnectionLoading(true);
+    try {
+      final data = await apiServices.getDisconnectionStatus();
+      if (data != null && data['status'] != 'error') {
+        disconnectionStatus.value = data;
+        debugPrint('✅ Disconnection status fetched: $data');
+      } else {
+        disconnectionStatus.value = null;
+        debugPrint('❌ No disconnection request found');
+      }
+    } catch (e) {
+      debugPrint('❌ Error fetching disconnection status: $e');
+      disconnectionStatus.value = null;
+    } finally {
+      isDisconnectionLoading(false);
+    }
+  }
+
   Future<void> refreshCustomerData() async {
     isLoading.value = true;
-    await fetchCustomerData();
-    await fetchRelocationStatus();
-    isLoading.value = false;
+    try {
+      // Reset all data to show loading state
+      customer.value = null;
+      planRequestStatus.value = null;
+      relocationStatus.value = null;
+      disconnectionStatus.value = null;
+      ticketDashboardTaskToday.value = null;
+
+      // Call all APIs in parallel for faster refresh
+      final int? userId = AppSharedPref.instance.getUserID();
+
+      // Fetch all data concurrently
+      await Future.wait([
+        _fetchCustomerDataInternal(userId),
+        fetchRelocationStatus(),
+        fetchDisconnectionStatus(),
+        if (userId != null) fetchPlanRequestStatus(userId),
+      ]);
+    } catch (e) {
+      print("Error refreshing customer data: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Internal method for fetching customer data without managing loading state
+  Future<void> _fetchCustomerDataInternal(int? userId) async {
+    try {
+      if (userId == null) return;
+
+      final resultData = await apiServices.fetchCustomer();
+      ticketDashboardTaskToday.value =
+          await apiServices.fetchCustomerTicketDashboardToday();
+      final result = resultData!;
+
+      customer.value = result;
+      currentPlanName.value = "Hello, ${result.contactName}";
+      currentSpeed.value = "100 Mbps";
+      currentPrice.value = "₹899/month";
+      usageProgress.value = 0.65;
+      usageText.value = "65% used";
+    } catch (e) {
+      print("Error in _fetchCustomerDataInternal: $e");
+    }
   }
 }
 
@@ -276,7 +340,6 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
   }
 
   Widget _buildHomeContent(HomeController controller) {
-    print(controller.ticketDashboardTaskToday.value);
     return CustomScrollView(
       physics: BouncingScrollPhysics(),
       slivers: [
@@ -288,7 +351,19 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
               _buildAdSwiper(),
               SizedBox(height: 24.h),
 
-              ///TODO
+              // Beautiful Status Widget
+              if (controller.disconnectionStatus.value != null) ...[
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  child: Obx(
+                    () => _buildDisconnectionStatusCard(
+                      controller.disconnectionStatus.value!,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 24.h),
+              ],
+
               if (!(controller.ticketDashboardTaskToday.value == null ||
                   controller.ticketDashboardTaskToday.value == [])) ...[
                 for (
@@ -319,6 +394,17 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
                 }),
               ),
 
+              // Padding(
+              //   padding: EdgeInsets.symmetric(horizontal: 16.w),
+              //   child: Obx(() {
+              //     if (controller.disconnectionStatus.value != null) {
+              //       return _buildDisconnectionTicketWidget(
+              //         controller.disconnectionStatus.value!,
+              //       );
+              //     }
+              // return SizedBox();
+              // }),
+              // ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: _buildPlanRequestStatus(),
@@ -413,7 +499,7 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
         SizedBox(height: 16.h),
 
         // Plans Carousel
-        Container(
+        SizedBox(
           height: 340.h,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
@@ -424,7 +510,7 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
               final plan = ottPlans[index];
               final hasDiscount =
                   plan['originalPrice'] != plan['discountedPrice'];
-              final isPopular = index == 1; // Mark second item as popular
+              // final isPopular = index == 1; // Mark second item as popular
 
               return Container(
                 width: 300.w,
@@ -898,7 +984,7 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Get.back(),
+                      onPressed: () => Navigator.of(Get.context!).pop(),
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 16.h),
                         shape: RoundedRectangleBorder(
@@ -913,7 +999,7 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        Get.back();
+                        Navigator.of(Get.context!).pop();
                         // Navigate to cart
                       },
                       style: ElevatedButton.styleFrom(
@@ -1043,6 +1129,413 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
         ),
         SizedBox(height: 24.h),
       ],
+    );
+  }
+
+  // Compact disconnection ticket widget (uses API response data)
+  Widget _buildDisconnectionTicketWidget(Map<String, dynamic> data) {
+    final status = (data['status'] ?? 'pending').toString().toLowerCase();
+    final ticketNo = data['ticket_no'] ?? 'N/A';
+    final serviceNo = data['service_no'] ?? 'N/A';
+    final accountId = data['account_id'] ?? 'N/A';
+    final disconnectionId = data['disconnection_id']?.toString() ?? 'N/A';
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (status) {
+      case 'completed':
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle;
+        statusText = 'Completed';
+        break;
+      case 'rejected':
+        statusColor = AppColors.error;
+        statusIcon = Icons.cancel;
+        statusText = 'Rejected';
+        break;
+      case 'pending':
+      default:
+        statusColor = AppColors.warning;
+        statusIcon = Icons.hourglass_empty;
+        statusText = 'Pending';
+    }
+
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14.r),
+            border: Border.all(color: statusColor.withOpacity(0.12)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8.r,
+                offset: Offset(0, 4.h),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Status icon
+              Container(
+                padding: EdgeInsets.all(10.r),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(statusIcon, color: statusColor, size: 22.r),
+              ),
+              SizedBox(width: 12.w),
+
+              // Main info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Disconnection Request',
+                      style: AppText.labelMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      '$statusText • Ticket: $ticketNo',
+                      style: AppText.bodySmall.copyWith(
+                        color: AppColors.textColorSecondary,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Service: $serviceNo',
+                            style: AppText.labelSmall.copyWith(
+                              color: AppColors.textColorPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Text(
+                            'Account: $accountId',
+                            style: AppText.labelSmall.copyWith(
+                              color: AppColors.textColorPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Right column: id + button
+              SizedBox(width: 12.w),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '#$disconnectionId',
+                    style: AppText.labelSmall.copyWith(
+                      color: AppColors.textColorSecondary,
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                  ElevatedButton(
+                    onPressed: () {
+                      try {
+                        Get.bottomSheet(
+                          SingleChildScrollView(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    MediaQuery.of(
+                                      Get.context!,
+                                    ).viewInsets.bottom,
+                              ),
+                              child: Container(
+                                padding: EdgeInsets.all(16.r),
+                                color: Colors.transparent,
+                                child: _buildDisconnectionStatusCard(data),
+                              ),
+                            ),
+                          ),
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                        );
+                      } catch (e) {
+                        BaseApiService().showSnackbar(
+                          'Disconnection',
+                          'Ticket $ticketNo - $statusText',
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: statusColor,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 8.h,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10.r),
+                      ),
+                    ),
+                    child: Text(
+                      'Details',
+                      style: AppText.button.copyWith(fontSize: 12.sp),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16.h),
+      ],
+    );
+  }
+
+  Widget _buildDisconnectionStatusCard(Map<String, dynamic> data) {
+    final status = data['status']?.toString().toLowerCase() ?? 'pending';
+    final ticketNo = data['ticket_no'] ?? 'N/A';
+    final serviceNo = data['service_no'] ?? 'N/A';
+    final accountId = data['account_id'] ?? 'N/A';
+
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+
+    switch (status) {
+      case 'completed':
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle;
+        statusText = 'Completed';
+        break;
+      case 'rejected':
+        statusColor = AppColors.error;
+        statusIcon = Icons.cancel;
+        statusText = 'Rejected';
+        break;
+      case 'pending':
+      default:
+        statusColor = AppColors.warning;
+        statusIcon = Icons.hourglass_empty;
+        statusText = 'Pending';
+    }
+
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(20.r),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                statusColor.withOpacity(0.1),
+                statusColor.withOpacity(0.05),
+                Colors.white,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(color: statusColor.withOpacity(0.3), width: 1.w),
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withOpacity(0.1),
+                blurRadius: 15.r,
+                offset: Offset(0, 4.h),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with status
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(10.r),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(statusIcon, color: statusColor, size: 24.r),
+                  ),
+                  SizedBox(width: 12.w),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Disconnection Request',
+                        style: AppText.headingSmall.copyWith(
+                          color: AppColors.textColorPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        statusText,
+                        style: AppText.bodySmall.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Spacer(),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 6.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: AppText.labelSmall.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20.h),
+              Divider(color: statusColor.withOpacity(0.2), height: 1),
+              SizedBox(height: 20.h),
+
+              // Details Grid
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12.w,
+                mainAxisSpacing: 12.h,
+                childAspectRatio: 2.h / 1.h,
+                children: [
+                  _buildDetailCard(
+                    icon: Iconsax.ticket,
+                    label: 'Ticket No',
+                    value: ticketNo,
+                    color: AppColors.primary,
+                  ),
+                  _buildDetailCard(
+                    icon: Iconsax.call,
+                    label: 'Service No',
+                    value: serviceNo,
+                    color: AppColors.secondary,
+                  ),
+                  _buildDetailCard(
+                    icon: Iconsax.wallet_3,
+                    label: 'Account ID',
+                    value: accountId,
+                    color: AppColors.primaryDark,
+                  ),
+                  _buildDetailCard(
+                    icon: Iconsax.calendar,
+                    label: 'Request ID',
+                    value: data['disconnection_id']?.toString() ?? 'N/A',
+                    color: AppColors.warning,
+                  ),
+                ],
+              ),
+              SizedBox(height: 20.h),
+
+              // Action Button
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: ElevatedButton.icon(
+              //     onPressed: () {
+              //       BaseApiService().showSnackbar(
+              //         "Disconnection Request",
+              //         "Your request has been received. Please check your email for updates.",
+              //       );
+              //     },
+              //     icon: Icon(Iconsax.info_circle, size: 18.r),
+              //     label: Text(
+              //       'View Details',
+              //       style: AppText.button.copyWith(fontSize: 14.sp),
+              //     ),
+              //     style: ElevatedButton.styleFrom(
+              //       backgroundColor: statusColor,
+              //       foregroundColor: Colors.white,
+              //       padding: EdgeInsets.symmetric(vertical: 14.h),
+              //       shape: RoundedRectangleBorder(
+              //         borderRadius: BorderRadius.circular(12.r),
+              //       ),
+              //       elevation: 2,
+              //     ),
+              //   ),
+              // ),
+            ],
+          ),
+        ),
+        SizedBox(height: 24.h),
+      ],
+    );
+  }
+
+  Widget _buildDetailCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(12.r),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: color.withOpacity(0.2), width: 1.w),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8.r),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16.r, color: color),
+              SizedBox(width: 6.w),
+              Flexible(
+                child: Text(
+                  label,
+                  style: AppText.labelSmall.copyWith(
+                    color: AppColors.textColorSecondary,
+                    fontSize: 10.sp,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 4.h),
+          Flexible(
+            child: Text(
+              value,
+              style: AppText.bodySmall.copyWith(
+                color: AppColors.textColorPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1787,60 +2280,60 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
             ],
           ),
           SizedBox(height: 24.h),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Data Usage",
-                    style: AppText.bodyMedium.copyWith(
-                      color: AppColors.textColorSecondary,
-                    ),
-                  ),
-                  Text(
-                    controller.usageText.value,
-                    style: AppText.labelMedium.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 8.h),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10.r),
-                child: LinearProgressIndicator(
-                  value: controller.usageProgress.value,
-                  backgroundColor: AppColors.inputBackground,
-                  minHeight: 10.h,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    _getProgressColor(controller.usageProgress.value),
-                  ),
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "0 GB",
-                    style: AppText.labelSmall.copyWith(
-                      color: AppColors.textColorHint,
-                    ),
-                  ),
-                  Text(
-                    "1000 GB",
-                    style: AppText.labelSmall.copyWith(
-                      color: AppColors.textColorHint,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          SizedBox(height: 20.h),
+          // Column(
+          //   crossAxisAlignment: CrossAxisAlignment.start,
+          //   children: [
+          //     Row(
+          //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //       children: [
+          //         Text(
+          //           "Data Usage",
+          //           style: AppText.bodyMedium.copyWith(
+          //             color: AppColors.textColorSecondary,
+          //           ),
+          //         ),
+          //         Text(
+          //           controller.usageText.value,
+          //           style: AppText.labelMedium.copyWith(
+          //             color: AppColors.primary,
+          //             fontWeight: FontWeight.w600,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //     SizedBox(height: 8.h),
+          //     ClipRRect(
+          //       borderRadius: BorderRadius.circular(10.r),
+          //       child: LinearProgressIndicator(
+          //         value: controller.usageProgress.value,
+          //         backgroundColor: AppColors.inputBackground,
+          //         minHeight: 10.h,
+          //         valueColor: AlwaysStoppedAnimation<Color>(
+          //           _getProgressColor(controller.usageProgress.value),
+          //         ),
+          //       ),
+          //     ),
+          //     SizedBox(height: 4.h),
+          //     Row(
+          //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //       children: [
+          //         Text(
+          //           "0 GB",
+          //           style: AppText.labelSmall.copyWith(
+          //             color: AppColors.textColorHint,
+          //           ),
+          //         ),
+          //         Text(
+          //           "1000 GB",
+          //           style: AppText.labelSmall.copyWith(
+          //             color: AppColors.textColorHint,
+          //           ),
+          //         ),
+          //       ],
+          //     ),
+          //   ],
+          // ),
+          // SizedBox(height: 20.h),
           Row(
             children: [
               Expanded(

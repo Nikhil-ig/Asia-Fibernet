@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -305,11 +306,11 @@ class OTPController extends GetxController {
 
             // 🔑 Check user role from response and navigate accordingly
             final userRole = verifyResponse.data.role;
-            
+
             // 📱 Upload FCM token in background (non-blocking)
             // This runs after navigation so it doesn't slow down the login flow
             _uploadFcmTokenInBackground();
-            
+
             if (userRole == "technician") {
               Get.offAllNamed(AppRoutes.technicianDashboard);
             } else {
@@ -403,6 +404,24 @@ class OTPController extends GetxController {
     // Run in background without blocking the UI
     Future.microtask(() async {
       try {
+        // 📱 Step 1: Refresh FCM token from Firebase
+        developer.log(
+          '🔄 Refreshing FCM token from Firebase after login...',
+          name: 'OTPController._uploadFcmTokenInBackground',
+        );
+
+        final newFcmToken = await FirebaseMessaging.instance.getToken();
+
+        if (newFcmToken != null && newFcmToken.isNotEmpty) {
+          // Save the fresh token
+          await AppSharedPref.instance.setfcmToken(newFcmToken);
+          developer.log(
+            '✅ Fresh FCM token saved from Firebase: $newFcmToken',
+            name: 'OTPController._uploadFcmTokenInBackground',
+          );
+        }
+
+        // 📱 Step 2: Get FCM token from SharedPreferences
         final fcmToken = await AppSharedPref.instance.getFCMToken();
 
         if (fcmToken == null || fcmToken.isEmpty) {
@@ -413,17 +432,23 @@ class OTPController extends GetxController {
           return;
         }
 
+        developer.log(
+          '📤 Uploading FCM token to API: $fcmToken',
+          name: 'OTPController._uploadFcmTokenInBackground',
+        );
+
+        // 📱 Step 3: Upload FCM token to API
         final apiService = ApiServices();
         final result = await apiService.fcmToken();
 
-        if (result != null) {
+        if (result != null && result['status'] != 'skipped') {
           developer.log(
-            '✅ FCM Token uploaded successfully in background',
+            '✅ FCM Token uploaded successfully in background\nResponse: $result',
             name: 'OTPController._uploadFcmTokenInBackground',
           );
         } else {
           developer.log(
-            '⚠️ Failed to upload FCM token in background - API returned null',
+            '⚠️ FCM token upload skipped or failed - API returned: $result',
             name: 'OTPController._uploadFcmTokenInBackground',
           );
         }

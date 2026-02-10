@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:asia_fibernet/src/services/apis/api_services.dart';
 import 'package:asia_fibernet/src/services/routes.dart';
+import 'package:asia_fibernet/src/services/sharedpref.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -10,7 +11,6 @@ import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,10 +18,12 @@ import 'package:asia_fibernet/src/customer/core/models/ticket_category_model.dar
 import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_model.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
+import '../../../services/background_services/location_tracking_background_service.dart';
 import '../../../theme/colors.dart';
 import '../../../theme/theme.dart';
 import '../../core/models/tech_dashboard_model.dart';
 import '../../attendance/attendance_screen.dart';
+import '../../core/models/tickets_model.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 
@@ -50,11 +52,16 @@ class TechnicianDashboardScreen extends StatefulWidget {
 
 class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
   final TechnicianAPI _api = TechnicianAPI();
+  final ApiServices _apiServices = ApiServices();
   AttendanceController attendanceController = AttendanceController();
   TechDashboardModel? _dashboard;
   List<RecentTicket> _recentTickets = [];
   bool _loading = true;
   int _notificationCount = 0;
+
+  // Role verification
+  String? _userRole;
+  String? _userMobile;
 
   // Store today's tickets from new API
   List<Map<String, dynamic>> _todayTickets = [];
@@ -70,14 +77,61 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       'status': 'Reached customer location',
     },
     {'id': 4, 'label': 'Work in Progress', 'status': 'Work in progress'},
-    {'id': 5, 'label': 'Completed', 'status': 'Completed'},
+    {'id': 5, 'label': 'Submitted', 'status': 'Completed'},
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadDashboard();
-    _loadTodayTickets(); // Load today's tickets
+    _initializeDashboard();
+  }
+
+  Future<void> _initializeDashboard() async {
+    try {
+      // Get user role and mobile from SharedPref
+      _userRole = AppSharedPref.instance.getRole();
+      _userMobile = AppSharedPref.instance.getMobileNumber();
+
+      // Check if user is technician
+      if (_userRole != 'technician') {
+        BaseApiService().showSnackbar(
+          "Access Denied",
+          "Only technicians can access this dashboard",
+        );
+        Future.delayed(Duration(seconds: 1), () {
+          Get.offAllNamed(AppRoutes.login);
+        });
+        return;
+      }
+
+      // Verify user mobile with API
+      if (_userMobile != null && _userMobile!.isNotEmpty) {
+        await _verifyUserMobile(_userMobile!);
+      }
+
+      // Load dashboard data
+      _loadDashboard();
+      _loadTodayTickets();
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to initialize dashboard: $e",
+      );
+    }
+  }
+
+  Future<void> _verifyUserMobile(String mobile) async {
+    try {
+      final response = await _apiServices.mobileVerification(mobile);
+      if (response == null) {
+        BaseApiService().showSnackbar(
+          "Verification Failed",
+          "Could not verify your mobile number",
+        );
+      }
+    } catch (e) {
+      BaseApiService().showSnackbar("Error", "Mobile verification error: $e");
+    }
   }
 
   Future<void> _loadDashboard() async {
@@ -93,26 +147,7 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
       });
 
       if (result != null) {
-        _recentTickets = [
-          RecentTicket(
-            ticketNo: 'TKT-001234',
-            category: 'Call Drops',
-            status: 'Closed',
-            createdAt: '2025-08-28',
-          ),
-          RecentTicket(
-            ticketNo: 'TKT-001235',
-            category: 'No Internet',
-            status: 'Open',
-            createdAt: '2025-08-29',
-          ),
-          RecentTicket(
-            ticketNo: 'TKT-001236',
-            category: 'Slow Speed',
-            status: 'Closed',
-            createdAt: '2025-08-30',
-          ),
-        ];
+        _recentTickets = [];
       }
     } catch (e) {
       setState(() {
@@ -141,6 +176,14 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         "Failed to load today's tickets: $e",
       );
     }
+  }
+
+  /// Refresh both dashboard and today's tickets
+  Future<void> _refreshDashboard() async {
+    debugPrint('🔄 Refreshing dashboard and tickets...');
+    await _loadDashboard();
+    await _loadTodayTickets();
+    debugPrint('✅ Dashboard and tickets refreshed!');
   }
 
   @override
@@ -306,19 +349,13 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.primary,
-                                  AppColors.primaryDark,
-                                ],
-                              ),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
                             ),
-                            child: const Icon(
-                              Iconsax.profile_2user,
-                              color: Colors.white,
-                              size: 30,
-                            ),
+                            child: _buildProfilePhotoCircle(data.profilePhoto),
                           ),
                           Positioned(
                             bottom: 0,
@@ -420,7 +457,8 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                 ticket: _todayTickets[index],
                 api: _api,
                 // stages: _stages,
-                onUpdated: _loadTodayTickets, // Only refresh tickets
+                onUpdated:
+                    _refreshDashboard, // Refresh both dashboard and tickets
               );
             },
           ),
@@ -473,6 +511,57 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
         const SizedBox(height: 40),
       ],
     );
+  }
+
+  // Helper widget to display profile photo
+  Widget _buildProfilePhotoCircle(String? photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+          ),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Iconsax.profile_2user, color: Colors.white, size: 30),
+      );
+    }
+
+    try {
+      // ✅ API returns file path like "uploads/profile/profile_1769516848.jpg"
+      // Construct full URL: https://asiafibernet.in/af/api/{photoPath}
+      final String imageUrl = 'https://asiafibernet.in/af/api/$photoPath';
+
+      return ClipOval(
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // Fallback if image fails to load
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Iconsax.profile_2user, color: Colors.white, size: 30),
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error loading profile photo: $e");
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryDark],
+          ),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Iconsax.profile_2user, color: Colors.white, size: 30),
+      );
+    }
   }
 
   // --- WIDGETS BELOW REMAIN UNCHANGED ---
@@ -656,7 +745,11 @@ class _TechnicianDashboardScreenState extends State<TechnicianDashboardScreen> {
                         child: CircularProgressIndicator(color: Colors.white),
                       ),
             ),
-            _drawerItem(Iconsax.home, "Dashboard", () => Get.back()),
+            _drawerItem(
+              Iconsax.home,
+              "Dashboard",
+              () => Navigator.pop(context),
+            ),
             _drawerItem(
               Iconsax.receipt,
               "All Tickets",
@@ -1152,6 +1245,8 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('✅ Stage updated to: $nextStatus')),
         );
+        // ✅ Wait a moment for the API to fully process the update
+        await Future.delayed(const Duration(milliseconds: 500));
         widget.onUpdated();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1596,13 +1691,15 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
                                             selectedCategory,
                                             selectedSubCategory,
                                             selectedDescription,
+                                            categoryList,
                                           );
                                         } else {
-                                          _reassignJobWithDetails(
+                                          _reriseComplaint(
                                             context,
                                             selectedCategory,
                                             selectedSubCategory,
                                             selectedDescription,
+                                            categoryList,
                                           );
                                         }
                                       },
@@ -1882,10 +1979,33 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
     int? categoryId,
     int? subCategoryId,
     String? description,
+    List<CategoryData>? categories,
   ) async {
     if (categoryId == null || subCategoryId == null || description == null) {
       BaseApiService().showSnackbar("Error", "Please fill all required fields");
       return;
+    }
+
+    // Extract category and subcategory names from the categories list
+    String categoryName = '';
+    String subCategoryName = '';
+
+    if (categories != null && categories.isNotEmpty) {
+      try {
+        final category = categories.firstWhere(
+          (cat) => cat.categoryId == categoryId,
+          orElse: () => categories.first,
+        );
+        categoryName = category.categoryName;
+
+        final subCategory = category.subcategories.firstWhere(
+          (sub) => sub.subcategoryId == subCategoryId,
+          orElse: () => category.subcategories.first,
+        );
+        subCategoryName = subCategory.subcategoryName;
+      } catch (e) {
+        debugPrint('Error extracting category/subcategory names: $e');
+      }
     }
 
     final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
@@ -1902,37 +2022,59 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
     );
 
     try {
-      final success = await widget.api.updateTicketWorkStatus(
+      // ✅ ROBUST APPROACH: Try stages 4→5 (only valid progression)
+      dynamic updateSuccess;
+
+      // Stage 4 → 5 is the valid progression for job completion
+      debugPrint(
+        '📋 Attempting to complete job with correct stage progression...',
+      );
+
+      updateSuccess = await widget.api.updateTicketWorkStatus(
         ticketNo: widget.ticket['ticket_no'],
         customerId: widget.ticket['customer_id'] ?? 0,
-        currentStage: 5,
+        currentStage: 5, // Move to stage 5 (final completion)
         status: 'Completed',
         lat: lat,
         long: long,
-        closureCategory: categoryId.toString(),
-        closureSubcategory: subCategoryId.toString(),
+        closureCategory: categoryName,
+        closureSubcategory: subCategoryName,
         closureRemark: description,
       );
 
-      if (success != null && success is Map && success['status'] == 'error') {
-        // API returned an error response
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '❌ ${success['message'] ?? 'Failed to complete job'}',
+      // ✅ Check if widget is still mounted before showing SnackBar
+      if (!mounted) return;
+
+      // Check if the API call was successful
+      if (updateSuccess != null && updateSuccess is Map) {
+        if (updateSuccess['status'] == 'error') {
+          // API returned an error - show the error message
+          debugPrint('❌ Stage update failed: ${updateSuccess['message']}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '❌ ${updateSuccess['message'] ?? 'Failed to complete job'}',
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
             ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      } else if (success != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Job completed and ticket closed!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        widget.onUpdated();
+          );
+        } else if (updateSuccess['status'] == 'success') {
+          // Success! Job completed and ticket closed
+          debugPrint('✅ Job completed successfully at stage 5');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Job completed and ticket closed!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // ✅ Refresh ticket list from parent widget
+          debugPrint('🔄 Triggering ticket list refresh...');
+          // Wait a moment for the API to fully process the update
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.onUpdated();
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1942,81 +2084,368 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
         );
       }
     } catch (e) {
+      // ✅ Check if widget is still mounted before showing error SnackBar
+      if (!mounted) return;
+      debugPrint('❌ Error completing job: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('⚠️ Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _reassignJobWithDetails(
+  /// Re-raise a completed complaint
+  Future<void> _reriseComplaint(
     BuildContext context,
     int? categoryId,
     int? subCategoryId,
     String? description,
+    List<CategoryData>? categories,
   ) async {
     if (categoryId == null || subCategoryId == null || description == null) {
       BaseApiService().showSnackbar("Error", "Please fill all required fields");
       return;
     }
 
-    final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
-    final latest = datas.isNotEmpty ? datas.last : {};
-    final lat = (latest['lat'] ?? latest['latitude'] ?? '12.9716').toString();
-    final long =
-        (latest['long'] ?? latest['longitude'] ?? '77.5946').toString();
+    // Extract category and subcategory names from the categories list
+    String categoryName = '';
+    String subCategoryName = '';
 
+    if (categories != null && categories.isNotEmpty) {
+      try {
+        final category = categories.firstWhere(
+          (cat) => cat.categoryId == categoryId,
+          orElse: () => categories.first,
+        );
+        categoryName = category.categoryName;
+
+        final subCategory = category.subcategories.firstWhere(
+          (sub) => sub.subcategoryId == subCategoryId,
+          orElse: () => category.subcategories.first,
+        );
+        subCategoryName = subCategory.subcategoryName;
+      } catch (e) {
+        debugPrint('Error extracting category/subcategory names: $e');
+      }
+    }
+
+    final customerMobileNo = customerDetail?.cellphnumber?.toString() ?? '';
+    if (customerMobileNo.isEmpty) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Customer mobile number not found",
+        isError: true,
+      );
+      return;
+    }
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🔄 Reassigning job and closing ticket...'),
-        backgroundColor: Colors.orange,
+        content: Text('🚨 Re-raising complaint...'),
+        backgroundColor: Colors.blue,
       ),
     );
 
     try {
-      final success = await widget.api.updateTicketWorkStatus(
-        ticketNo: widget.ticket['ticket_no'],
-        customerId: widget.ticket['customer_id'] ?? 0,
-        currentStage: 5, // Move to Completed stage to close ticket
-        status: 'Completed',
-        lat: lat,
-        long: long,
-        closureCategory: categoryId.toString(),
-        closureSubcategory: subCategoryId.toString(),
-        closureRemark: description,
+      final success = await widget.api.reriseComplaint(
+        mobile: customerMobileNo,
+        title: categoryName, // Category NAME (not ID)
+        subCategory: subCategoryName, // Subcategory NAME (not ID)
+        description: description,
+        image: null, // Optional: can pass image if needed
+        assignBy: 1,
+        assignTo: null,
+        status: "Open",
       );
 
-      if (success != null && success is Map && success['status'] == 'error') {
-        // API returned an error response
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '❌ ${success['message'] ?? 'Failed to reassign job'}',
+      // ✅ Check if widget is still mounted before proceeding with UI updates
+      if (!mounted) return;
+
+      if (success) {
+        // ✅ Complaint re-raised successfully, now update ticket status
+        final datas = List<Map<String, dynamic>>.from(
+          widget.ticket['datas'] ?? [],
+        );
+        final latest = datas.isNotEmpty ? datas.last : {};
+        final lat =
+            (latest['lat'] ?? latest['latitude'] ?? '12.9716').toString();
+        final long =
+            (latest['long'] ?? latest['longitude'] ?? '77.5946').toString();
+
+        debugPrint('📋 Re-raise successful, updating ticket status...');
+
+        final updateSuccess = await widget.api.updateTicketWorkStatus(
+          ticketNo: widget.ticket['ticket_no'],
+          customerId: widget.ticket['customer_id'] ?? 0,
+          currentStage: 5, // Reset to "Accept Job" stage
+          status: 'Completed',
+          lat: lat,
+          long: long,
+          closureCategory: categoryName.toString(),
+          closureSubcategory: subCategoryName.toString(),
+          closureRemark: description,
+        );
+
+        // ✅ Check if widget is still mounted before showing final SnackBar
+        if (!mounted) return;
+
+        if (updateSuccess != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Complaint re-raised and ticket updated!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
             ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      } else if (success != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Job reassigned with details and ticket closed!'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        widget.onUpdated();
+          );
+          // ✅ Refresh ticket list from parent widget
+          debugPrint('🔄 Triggering ticket list refresh...');
+          // Wait a moment for the API to fully process the update
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.onUpdated();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '⚠️ Complaint re-raised but failed to update ticket',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          // ✅ Refresh ticket list from parent widget even if stage update failed
+          debugPrint('🔄 Triggering ticket list refresh...');
+          await Future.delayed(const Duration(milliseconds: 500));
+          widget.onUpdated();
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Failed to reassign job, Error: $success'),
+          const SnackBar(
+            content: Text('❌ Failed to re-raise complaint'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
+      // ✅ Check if widget is still mounted before showing error SnackBar
+      if (!mounted) return;
+      debugPrint('❌ Error re-raising complaint: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('⚠️ Error: $e'), backgroundColor: Colors.red),
       );
     }
+  }
+
+  /// Show call request popup dialog
+  void _showCallRequestPopup(BuildContext context) {
+    final callStatus = 'sending'.obs; // sending, success, error
+    final errorMessage = ''.obs;
+
+    showDialog(
+      context: context,
+      // barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) {
+        // Auto-close dialog after 5 seconds
+        Future.delayed(const Duration(seconds: 5), () {
+          if (context.mounted) {
+            Navigator.pop(context);
+          }
+        });
+
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          elevation: 8,
+          backgroundColor: Colors.white,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.white, Colors.white.withOpacity(0.98)],
+              ),
+            ),
+            padding: const EdgeInsets.all(32),
+            child: Stack(
+              children: [
+                // Close button in top-right
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.grey.shade200,
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        size: 20,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ),
+                // Main content
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon with animation
+                    if (callStatus.value == 'sending')
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        duration: const Duration(milliseconds: 600),
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.primary.withOpacity(0.2),
+                                    AppColors.primary.withOpacity(0.05),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 60,
+                                  height: 60,
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.primary,
+                                    ),
+                                    strokeWidth: 3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    else if (callStatus.value == 'success')
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.green.withOpacity(0.2),
+                              Colors.green.withOpacity(0.1),
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            size: 60,
+                            color: Colors.green,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.red.withOpacity(0.2),
+                              Colors.red.withOpacity(0.1),
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.error_rounded,
+                            size: 60,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+
+                    // Title
+                    Text(
+                      callStatus.value == 'sending'
+                          ? 'Initiating Call'
+                          : callStatus.value == 'success'
+                          ? 'Call Initiated'
+                          : 'Failed',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Message
+                    Text(
+                      callStatus.value == 'sending'
+                          ? 'Sending call request...'
+                          : callStatus.value == 'success'
+                          ? 'Call request sent successfully!'
+                          : errorMessage.value.isNotEmpty
+                          ? errorMessage.value
+                          : 'Failed to send call request',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // Button
+                    if (callStatus.value != 'sending')
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                callStatus.value == 'success'
+                                    ? Colors.green
+                                    : Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            callStatus.value == 'success'
+                                ? 'Done'
+                                : 'Try Again',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -2048,9 +2477,9 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
     final isFinalStep = currentStageId == 4;
     final buttonText =
         isCompleted
-            ? 'Job Completed'
+            ? 'Submitted'
             : isFinalStep
-            ? 'Complete Job'
+            ? 'Submit Completion'
             : 'Mark as Next Step';
 
     return Card(
@@ -2316,74 +2745,100 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
             Column(
               spacing: 10,
               children: [
-                // ElevatedButton.icon(
-                //   onPressed: () {
-                //     final lat =
-                //         double.tryParse(
-                //           latest['latitude']?.toString() ??
-                //               latest['lat']?.toString() ??
-                //               '0.00',
-                //         ) ??
-                //         0.0;
-                //     final long =
-                //         double.tryParse(
-                //           latest['longitude']?.toString() ??
-                //               latest['long']?.toString() ??
-                //               '0.00',
-                //         ) ??
-                //         0.0;
-                //     _openLocationOnMap(lat, long);
-                //   },
-                //   icon: const Icon(Icons.location_on, size: 18),
-                //   label: const Text('Location'),
-                //   style: ElevatedButton.styleFrom(
-                //     backgroundColor: Colors.blue,
-                //     foregroundColor: Colors.white,
-                //     padding: const EdgeInsets.symmetric(
-                //       horizontal: 16,
-                //       vertical: 12,
-                //     ),
-                //     shape: RoundedRectangleBorder(
-                //       borderRadius: BorderRadius.circular(10),
-                //     ),
-                //     elevation: 2,
-                //   ),
-                // ),
-                SizedBox(width: double.infinity),
-                // Auto-advance button
-                ElevatedButton.icon(
-                  onPressed:
-                      isCompleted ? null : () => _autoAdvanceStage(context),
-                  icon: Icon(
-                    isCompleted
-                        ? Icons.check
-                        : isFinalStep
-                        ? Icons.done_all
-                        : Icons.arrow_forward,
-                    size: 18,
+                // Make Call Button
+                if (!(status.toLowerCase() == 'closed' ||
+                    status.toLowerCase() == 'resolved'))
+                  ElevatedButton(
+                    onPressed: () async {
+                      // Start background location tracking when calling customer
+                      try {
+                        final ticketDate = DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(DateTime.now());
+                        final bgService = LocationTrackingBackgroundService();
+                        await bgService.startTracking(
+                          ticketDate: ticketDate,
+                          intervalSeconds: 60,
+                        );
+                      } catch (e) {
+                        print('⚠️ Failed to start tracking: $e');
+                      }
+
+                      // 📞 Show beautiful call request popup
+                      if (context.mounted) {
+                        _showCallRequestPopup(context);
+                        _sendCallRequest(
+                          widget.api,
+                          TicketModel.fromJson(widget.ticket),
+                          ''.obs,
+                          ''.obs,
+                          true.obs,
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.call, size: 18),
+                            const SizedBox(width: 8),
+                            const Text("Make Call"),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                  label: Text(buttonText),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        isCompleted
-                            ? Colors.green.shade200
-                            : isFinalStep
-                            ? Colors.green
-                            : AppColors.primary,
-                    foregroundColor:
-                        isCompleted
-                            ? Colors.green.shade800
-                            : isFinalStep
-                            ? Colors.white
-                            : Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                // Auto-advance button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed:
+                        isCompleted ? null : () => _autoAdvanceStage(context),
+                    icon: Icon(
+                      isCompleted
+                          ? Icons.check
+                          : isFinalStep
+                          ? Icons.done_all
+                          : Icons.arrow_forward,
+                      size: 18,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                    label: Text(buttonText),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          isCompleted
+                              ? Colors.green.shade200
+                              : isFinalStep
+                              ? Colors.green
+                              : AppColors.primary,
+                      foregroundColor:
+                          isCompleted
+                              ? Colors.green.shade800
+                              : isFinalStep
+                              ? Colors.white
+                              : Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
                     ),
-                    elevation: 2,
                   ),
                 ),
               ],
@@ -2414,4 +2869,39 @@ Color _getPriorityColor(String? priority) {
   if (p == 'medium') return Colors.orange;
   if (p == 'low') return Colors.green;
   return Colors.grey;
+}
+
+Future<void> _sendCallRequest(
+  TechnicianAPI apiServices,
+  TicketModel ticket,
+  RxString callStatus,
+  RxString errorMessage,
+  RxBool isLoading,
+) async {
+  try {
+    final callResult = await apiServices.callCustomer(
+      mobileNo: ticket.customerMobileNo ?? '',
+    );
+
+    if (callResult != null && callResult['success'] == true) {
+      debugPrint('✅ Call request sent successfully');
+      callStatus.value = 'success';
+
+      // Auto-close after 5 seconds
+      await Future.delayed(const Duration(seconds: 5));
+      if (Get.isDialogOpen ?? false) {
+        Navigator.of(Get.context!).pop();
+      }
+    } else {
+      debugPrint('❌ Call request failed: ${callResult?['message']}');
+      errorMessage.value = callResult?['message'] ?? 'Failed to initiate call';
+      callStatus.value = 'error';
+    }
+  } catch (e) {
+    debugPrint('❌ Error sending call request: $e');
+    errorMessage.value = 'Error: ${e.toString()}';
+    callStatus.value = 'error';
+  } finally {
+    isLoading.value = false;
+  }
 }

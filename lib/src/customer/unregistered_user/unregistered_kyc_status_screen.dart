@@ -189,7 +189,7 @@ class KycStatusController extends GetxController {
       };
 
       final bool success = await _api.reUploadKyc(payload);
-      Get.back();
+      Navigator.of(Get.context!).pop();
 
       if (success) {
         await fetchKycStatus();
@@ -208,7 +208,7 @@ class KycStatusController extends GetxController {
         return false;
       }
     } catch (e) {
-      Get.back();
+      Navigator.of(Get.context!).pop();
       baseApiService.showSnackbar(
         "Error",
         e.toString().split(':').first,
@@ -360,7 +360,7 @@ class FinalKycStatusScreen extends StatelessWidget {
       PolicyAcceptanceDialog(
         policyUrl: "${BaseApiService.api}get_policy.php",
         onAccept: () async {
-          Get.back(); // Close dialog
+          Navigator.of(Get.context!).pop(); // Close dialog
 
           // ✅ Call user confirmation API
           final api = ApiServices();
@@ -1258,7 +1258,7 @@ class FinalKycStatusScreen extends StatelessWidget {
                 children: [
                   Text(title, style: AppText.headingMedium),
                   IconButton(
-                    onPressed: () => Get.back(),
+                    onPressed: () => Navigator.of(Get.context!).pop(),
                     icon: Icon(Icons.close_rounded, size: 24.sp),
                   ),
                 ],

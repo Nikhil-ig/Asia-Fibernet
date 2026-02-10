@@ -1608,7 +1608,7 @@ class _EnhancedKycViewState extends State<_EnhancedKycView> {
           Row(
             children: [
               GestureDetector(
-                onTap: () => Get.back(),
+                onTap: () => Navigator.of(Get.context!).pop(),
                 child: Container(
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
@@ -3090,7 +3090,7 @@ class _EnhancedKycViewState extends State<_EnhancedKycView> {
                 leading: Icon(Iconsax.camera, color: AppColors.primary),
                 title: Text('Take Photo'),
                 onTap: () {
-                  Get.back();
+                  Navigator.of(Get.context!).pop();
                   _pickImage(ImageSource.camera, type);
                 },
               ),
@@ -3098,7 +3098,7 @@ class _EnhancedKycViewState extends State<_EnhancedKycView> {
                 leading: Icon(Iconsax.gallery, color: AppColors.primary),
                 title: Text('Choose from Gallery'),
                 onTap: () {
-                  Get.back();
+                  Navigator.of(Get.context!).pop();
                   _pickImage(ImageSource.gallery, type);
                 },
               ),

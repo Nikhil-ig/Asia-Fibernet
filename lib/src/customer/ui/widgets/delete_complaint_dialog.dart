@@ -34,7 +34,7 @@ class DeleteComplaintDialog extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () {
-              Get.back();
+              Navigator.of(Get.context!).pop();
             },
             child: Text(
               "No",
@@ -117,7 +117,7 @@ class DeleteComplaintDialog extends StatelessWidget {
       );
     } finally {
       isDeleting.value = false;
-      // ✅ Only call Get.back() ONCE here
+      // ✅ Only call Navigator.of(Get.context!).pop() ONCE here
       if (Get.isDialogOpen == true) {
         Navigator.of(context).pop();
       }

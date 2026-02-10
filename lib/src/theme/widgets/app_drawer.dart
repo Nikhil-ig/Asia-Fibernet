@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:badges/badges.dart' as badges;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../auth/ui/scaffold_screen.dart';
 import '../../auth/ui/widgets/account_switcher.dart';
@@ -669,7 +670,11 @@ class _DrawerFooter extends StatelessWidget {
                 },
                 // isPro: false,
               ),
-              _FooterButton(icon: Iconsax.call, label: "Support", onTap: () {}),
+              _FooterButton(
+                icon: Iconsax.call,
+                label: "Support",
+                onTap: () => makePhoneCall(),
+              ),
             ],
           ),
           // SizedBox(height: 16.h),
@@ -732,6 +737,34 @@ class _FooterButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+Future<void> makePhoneCall({String phoneNumber = "7090909029"}) async {
+  try {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(phoneUri)) {
+      await launchUrl(phoneUri);
+      debugPrint('✅ Phone call launched: $phoneNumber');
+    } else {
+      debugPrint('❌ Could not launch phone dialer');
+
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        const SnackBar(
+          content: Text('Could not launch phone dialer'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint('❌ Error launching call: $e');
+
+    ScaffoldMessenger.of(Get.context!).showSnackBar(
+      SnackBar(
+        content: Text('Error launching phone call: $e'),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

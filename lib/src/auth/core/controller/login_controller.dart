@@ -16,7 +16,7 @@ import 'binding/otp_binding.dart';
 /// ⚠️ DEBUG MODE CONFIGURATION
 /// Set this to true ONLY during development/testing to bypass OTP verification
 /// IMPORTANT: Set to false before production release!
-const bool kDebugModeBypassOTP = true;
+const bool kDebugModeBypassOTP = false;
 
 /// Debug phone number to automatically trigger skip OTP
 const String kDebugPhoneNumber = '7877851728';
@@ -41,6 +41,9 @@ class LoginController extends GetxController
 
   // ✅ Add a loading state observable
   final RxBool isLoading = false.obs;
+
+  // ✅ Error message display in UI
+  final RxString loginError = "".obs;
 
   // ✅ Clipboard monitoring for phone number auto-fill
   String? _lastClipboardContent;
@@ -174,6 +177,13 @@ class LoginController extends GetxController
     });
   }
 
+  // ✅ Clear error message when user starts typing
+  void clearError() {
+    if (loginError.value.isNotEmpty) {
+      loginError.value = "";
+    }
+  }
+
   // Inside LoginController class
 
   void login() async {
@@ -185,11 +195,13 @@ class LoginController extends GetxController
     String phoneNumber = phoneController.text.trim();
 
     if (phoneNumber.isEmpty) {
+      loginError.value = "Please enter a mobile number";
       _baseApiService.showSnackbar("Error", "Please enter a mobile number.");
       return;
     }
 
     isLoading.value = true;
+    loginError.value = ""; // Clear previous errors
 
     try {
       print("Attempting to verify mobile: $phoneNumber");
@@ -197,26 +209,40 @@ class LoginController extends GetxController
       final verifyResponse = await _apiService.mobileVerification(phoneNumber);
       final otpResponse = await _apiService.generateOTP(phoneNumber);
 
-      if (verifyResponse == null) {
+      // ✅ Check if EITHER verify or OTP response is null
+      if (verifyResponse == null && otpResponse == null) {
+        loginError.value = "Could not connect. Please check your internet.";
         _baseApiService.showSnackbar(
           "Network Error",
           "Could not connect. Please check your internet connection.",
         );
+        isLoading.value = false;
         return;
       }
 
-      // Check if OTP generation failed
+      // ✅ Check if OTP generation failed (priority over verify response)
       if (otpResponse != null && otpResponse.status == "error") {
-        _baseApiService.showSnackbar(
-          "Error",
-          otpResponse.message.isNotEmpty
-              ? otpResponse.message
-              : "Unable to send OTP. Please try again.",
-        );
+        loginError.value =
+            otpResponse.message.isNotEmpty
+                ? otpResponse.message
+                : "Unable to send OTP. Please try again.";
+        _baseApiService.showSnackbar("Error", loginError.value);
+        isLoading.value = false;
         return;
       }
 
-      if (verifyResponse.status == "success") {
+      // ✅ Check if mobile verification failed
+      if (verifyResponse != null && verifyResponse.status == "error") {
+        loginError.value =
+            verifyResponse.message.isNotEmpty
+                ? verifyResponse.message
+                : "Unable to verify mobile number. Please try again.";
+        _baseApiService.showSnackbar("Error", loginError.value);
+        isLoading.value = false;
+        return;
+      }
+
+      if (verifyResponse != null && verifyResponse.status == "success") {
         // AppSharedPref.instance.setOTP(otp.otp);
         final role = verifyResponse.data.userRole;
         final userId =
@@ -241,6 +267,7 @@ class LoginController extends GetxController
           await AppSharedPref.instance.setVerificationStatus(true);
 
           print("✅ User logged in directly (DEBUG MODE)");
+          loginError.value = ""; // Clear error on success
           _baseApiService.showSnackbar(
             "Debug Mode",
             "Logged in directly (OTP bypassed for testing)",
@@ -363,23 +390,11 @@ class LoginController extends GetxController
             // );
             break;
         }
-      } else {
-        // API returned status != "success"
-        print("❌ Verification failed with status: ${verifyResponse.status}");
-        print("Error message: ${verifyResponse.message}");
-        _baseApiService.showSnackbar(
-          "Verification Failed",
-          verifyResponse.message.isNotEmpty
-              ? verifyResponse.message
-              : "Unable to verify mobile number. Please try again.",
-        );
       }
     } catch (e) {
       print("Exception during login: $e");
-      _baseApiService.showSnackbar(
-        "Error",
-        "An unexpected error occurred. Please try again.",
-      );
+      loginError.value = "An unexpected error occurred. Please try again.";
+      _baseApiService.showSnackbar("Error", loginError.value);
     } finally {
       isLoading.value = false;
     }

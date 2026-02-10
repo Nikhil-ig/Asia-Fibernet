@@ -1,0 +1,103 @@
+# Call Customer Feature - Quick Reference (v2)
+
+## What Was Added?
+
+A new feature that allows technicians to send a **call request to the server** when they click "Make Call" on a customer ticket. **Now includes customer mobile number** for server-side call routing.
+
+## How It Works
+
+1. **Technician clicks "Make Call"** on a ticket
+2. **App sends API request** to server with technician ID + customer mobile
+3. **Server initiates call** to the customer using the mobile number
+4. **User sees success/error message** (snackbar)
+5. **CallScreen opens** for the technician to handle the call
+
+## API Details
+
+| Property | Value |
+|----------|-------|
+| Endpoint | `/af/api/call_customer.php` |
+| Method | POST |
+| Parameters | `Technician_id` (auto-filled) + `mobile_no` (from ticket) |
+| Expected Response | `{"status": "success", "message": "..."}` |
+
+## Code Location
+
+### Service Layer
+**File**: `lib/src/services/apis/technician_api_service.dart`
+- Method: `callCustomer({required String mobileNo})`
+- Constant: `_callCustomer = "call_customer.php"`
+
+### UI Layer
+**File**: `lib/src/technician/ui/screens/all_tickets_screen.dart`
+- Location: "Make Call" button in ticket details bottom sheet
+- Passes: `ticket.customerMobileNo` to the API method
+
+## Usage Example
+
+```dart
+// Call the API with customer mobile number
+final result = await apiServices.callCustomer(
+  mobileNo: ticket.customerMobileNo ?? '',
+);
+
+// Handle response
+if (result != null && result['status'] == 'success') {
+  // Show success message
+  BaseApiService().showSnackbar('Success', 'Call initiated');
+} else {
+  // Show error
+  BaseApiService().showSnackbar('Error', 'Call failed', isError: true);
+}
+```
+
+## Key Features
+
+✅ **Automatic Technician ID** - Retrieved from SharedPreferences  
+✅ **Customer Mobile** - Passed from ticket details to API  
+✅ **Error Handling** - Graceful error messages to user  
+✅ **Logging** - Detailed logs for debugging (debugPrint)  
+✅ **Non-blocking** - Location tracking and call request run in parallel  
+✅ **User Feedback** - Snackbar notifications  
+
+## Testing Commands
+
+```bash
+# Build the app
+flutter clean && flutter build apk --release
+
+# Run in debug mode
+flutter run
+
+# View logs with call details
+flutter logs | grep "📞"
+```
+
+## Debugging Tips
+
+1. **Enable verbose logging**: `flutter run -v`
+2. **Check server logs** for incoming call requests with mobile number
+3. **Monitor snackbar messages** for success/error feedback
+4. **Use DevTools** to inspect network request body (includes mobile_no)
+5. **Check SharedPreferences** to verify technician ID is stored
+6. **Monitor logs** for customer mobile number being passed
+
+## Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| Call request not sent | Check technician ID in SharedPreferences |
+| API returns error | Verify endpoint URL and server status |
+| No snackbar shown | Check BaseApiService implementation |
+| Location tracking fails | Ensure permissions are granted |
+
+## Version Info
+
+- **Dart Version**: 2.19+
+- **Flutter Version**: 3.7.0+
+- **Implementation Date**: January 21, 2026
+- **Status**: ✅ Production Ready
+
+---
+
+For detailed implementation, see: `CALL_CUSTOMER_IMPLEMENTATION.md`

@@ -6,7 +6,6 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../call/call_screen.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
 import '../../../services/sharedpref.dart';
@@ -186,7 +185,7 @@ class AllTicketsController extends GetxController {
             ElevatedButton(
               onPressed: () {
                 isDateFilterActive.value = true;
-                Get.back();
+                Navigator.of(Get.context!).pop();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -350,14 +349,14 @@ class AllTicketsController extends GetxController {
                                     _formatDate(ticket.updatedAt!),
                                   ),
                                 ],
-                                if (ticket.customerMobileNo != null) ...[
-                                  SizedBox(height: 12),
-                                  _detailRow(
-                                    Iconsax.call,
-                                    "Customer",
-                                    ticket.customerMobileNo!,
-                                  ),
-                                ],
+                                // if (ticket.customerMobileNo != null) ...[
+                                //   SizedBox(height: 12),
+                                //   _detailRow(
+                                //     Iconsax.call,
+                                //     "Customer",
+                                //     ticket.customerMobileNo!,
+                                //   ),
+                                // ],
                                 if (ticket.technicianName != null) ...[
                                   SizedBox(height: 12),
                                   _detailRow(
@@ -400,38 +399,30 @@ class AllTicketsController extends GetxController {
                       ),
                     ),
                     SizedBox(height: 20),
+                    if (ticket.assignTo == AppSharedPref.instance.getUserID())
+                      ElevatedButton(
+                        onPressed: () async {
+                          // Start background location tracking when calling customer
+                          try {
+                            final ticketDate = DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(DateTime.now());
+                            await _bgService.startTracking(
+                              ticketDate: ticketDate,
+                              intervalSeconds: 60,
+                            );
+                          } catch (e) {
+                            print('⚠️ Failed to start tracking: $e');
+                          }
 
-                    ElevatedButton(
-                      onPressed: () async {
-                        // Start background location tracking when calling customer
-                        try {
-                          final ticketDate = DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(DateTime.now());
-                          await _bgService.startTracking(
-                            ticketDate: ticketDate,
-                            intervalSeconds: 60,
-                          );
-                        } catch (e) {
-                          print('⚠️ Failed to start tracking: $e');
-                        }
-
-                        Get.to(
-                          () => CallScreen(
-                            customerName:
-                                ticket.customerName ??
-                                "Unknown", // Default value if null
-                            customerNumber:
-                                ticket.customerMobileNo ??
-                                "Unknown", // Default value if null
-                          ),
-                        );
-                      },
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: Center(child: Text("Make Call")),
+                          // 📞 Show beautiful call request popup
+                          _showCallRequestPopup(context, ticket, apiServices);
+                        },
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Center(child: Text("Make Call")),
+                        ),
                       ),
-                    ),
                     if (ticket.description != null)
                       _section("Issue Description", ticket.description!),
                     SizedBox(height: 16),
@@ -740,7 +731,7 @@ class AllTicketsController extends GetxController {
                           Iconsax.close_circle,
                           color: AppColors.textColorSecondary,
                         ),
-                        onPressed: () => Get.back(),
+                        onPressed: () => Navigator.of(Get.context!).pop(),
                       ),
                     ],
                   ),
@@ -1165,6 +1156,374 @@ class AllTicketsController extends GetxController {
         return 'Completed';
       default:
         return 'Unknown';
+    }
+  }
+
+  // ===== CALL REQUEST POPUP =====
+
+  void _showCallRequestPopup(
+    BuildContext context,
+    TicketModel ticket,
+    TechnicianAPI apiServices,
+  ) {
+    final isLoading = true.obs;
+    final callStatus = 'sending'.obs; // sending, success, error
+    final errorMessage = ''.obs;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) {
+        return Obx(() {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            elevation: 8,
+            backgroundColor: Colors.white,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.white, Colors.white.withOpacity(0.98)],
+                ),
+              ),
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon with animation
+                  if (callStatus.value == 'sending')
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: const Duration(milliseconds: 600),
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary.withOpacity(0.2),
+                                  AppColors.primary.withOpacity(0.05),
+                                ],
+                              ),
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary,
+                                  ),
+                                  strokeWidth: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  else if (callStatus.value == 'success')
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.withOpacity(0.2),
+                            Colors.green.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 60,
+                          color: Colors.green.shade600,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.red.withOpacity(0.2),
+                            Colors.red.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.error_rounded,
+                          size: 60,
+                          color: Colors.red.shade600,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    callStatus.value == 'sending'
+                        ? '📞 Sending Call Request'
+                        : callStatus.value == 'success'
+                        ? '✅ Call Initiated Successfully'
+                        : '❌ Call Request Failed',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color:
+                          callStatus.value == 'sending'
+                              ? AppColors.textColorPrimary
+                              : callStatus.value == 'success'
+                              ? Colors.green.shade700
+                              : Colors.red.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Description
+                  Text(
+                    callStatus.value == 'sending'
+                        ? 'Requesting call with customer...'
+                        : callStatus.value == 'success'
+                        ? 'The customer will receive a call shortly'
+                        : errorMessage.value.isNotEmpty
+                        ? errorMessage.value
+                        : 'Failed to send call request. Please try again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textColorSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Customer Info (visible in all states)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.backgroundLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.dividerColor,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.primary,
+                                AppColors.primary.withOpacity(0.7),
+                              ],
+                            ),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              Iconsax.call,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Ticket',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textColorSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                ticket.ticketNo,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textColorPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Container(
+                        //   padding: const EdgeInsets.symmetric(
+                        //     horizontal: 12,
+                        //     vertical: 8,
+                        //   ),
+                        //   decoration: BoxDecoration(
+                        //     color: AppColors.primary.withOpacity(0.1),
+                        //     borderRadius: BorderRadius.circular(8),
+                        //   ),
+                        //   child: Text(
+                        //     ticket.customerMobileNo ?? 'N/A',
+                        //     style: TextStyle(
+                        //       fontSize: 12,
+                        //       fontWeight: FontWeight.bold,
+                        //       color: AppColors.primary,
+                        //     ),
+                        //   ),
+                        // ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Buttons
+                  if (callStatus.value == 'error')
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey.shade100,
+                              foregroundColor: AppColors.textColorPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Dismiss',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              callStatus.value = 'sending';
+                              errorMessage.value = '';
+                              isLoading.value = true;
+                              _sendCallRequest(
+                                apiServices,
+                                ticket,
+                                callStatus,
+                                errorMessage,
+                                isLoading,
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Try Again',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (callStatus.value == 'success')
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade500,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Call Initiated',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
+    );
+
+    // Send call request immediately
+    _sendCallRequest(apiServices, ticket, callStatus, errorMessage, isLoading);
+  }
+
+  Future<void> _sendCallRequest(
+    TechnicianAPI apiServices,
+    TicketModel ticket,
+    RxString callStatus,
+    RxString errorMessage,
+    RxBool isLoading,
+  ) async {
+    try {
+      final callResult = await apiServices.callCustomer(
+        mobileNo: ticket.customerMobileNo ?? '',
+      );
+
+      if (callResult != null && callResult['success'] == true) {
+        debugPrint('✅ Call request sent successfully');
+        callStatus.value = 'success';
+
+        // Auto-close after 5 seconds
+        await Future.delayed(const Duration(seconds: 5));
+        if (Get.isDialogOpen ?? false) {
+          Navigator.of(Get.context!).pop();
+        }
+      } else {
+        debugPrint('❌ Call request failed: ${callResult?['message']}');
+        errorMessage.value =
+            callResult?['message'] ?? 'Failed to initiate call';
+        callStatus.value = 'error';
+      }
+    } catch (e) {
+      debugPrint('❌ Error sending call request: $e');
+      errorMessage.value = 'Error: ${e.toString()}';
+      callStatus.value = 'error';
+    } finally {
+      isLoading.value = false;
     }
   }
 }

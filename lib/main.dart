@@ -5,7 +5,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -19,13 +18,8 @@ import 'src/services/apis/api_services.dart';
 import 'src/services/routes.dart';
 import 'src/services/sharedpref.dart';
 import 'src/services/background_services/app_lifecycle_manager.dart';
+import 'src/services/utils/notification_helper.dart';
 import 'src/theme/colors.dart';
-
-/// Create a [AndroidNotificationChannel] for heads up notifications
-late AndroidNotificationChannel channel;
-
-/// Initialize the [FlutterLocalNotificationsPlugin] package.
-late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -55,45 +49,54 @@ void main() async {
   await ScreenUtil.ensureScreenSize();
   await AppSharedPref.init();
 
-  // --- START: MORE ROBUST TOKEN RETRIEVAL ---
-  if (kDebugMode) {
-    try {
-      // For iOS, explicitly get the APNS token first.
-      // This will return null on simulators, which is expected.
-      String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-      if (apnsToken == null && defaultTargetPlatform == TargetPlatform.iOS) {
+  // ✅ Initialize notifications (local + Firebase with custom sound)
+  await NotificationHelper.initialize();
+
+  // --- START: MORE ROBUST TOKEN RETRIEVAL (runs in both DEBUG and RELEASE) ---
+  try {
+    // For iOS, explicitly get the APNS token first.
+    // This will return null on simulators, which is expected.
+    String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+    if (apnsToken == null && defaultTargetPlatform == TargetPlatform.iOS) {
+      if (kDebugMode) {
         print('=======================================');
         print('!!! WARNING: Running on iOS Simulator !!!');
         print(
           'Push notifications will not work. Please use a physical device.',
         );
         print('=======================================');
-        AppSharedPref.instance.setfcmToken('ios-simulator-token');
-      } else {
-        // Now get the FCM token.
-        try {
-          final fcmToken = await FirebaseMessaging.instance.getToken();
+      }
+      AppSharedPref.instance.setfcmToken('ios-simulator-token');
+    } else {
+      // Now get the FCM token.
+      try {
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        if (kDebugMode) {
           print('=======================================');
           print('!!! COPY THIS FCM TOKEN FOR TESTING !!!');
           print('FCM Token: $fcmToken');
-          AppSharedPref.instance.setfcmToken(fcmToken!);
           print('=======================================');
-        } catch (firebaseError) {
-          // Handle SERVICE_NOT_AVAILABLE error gracefully
-          if (firebaseError.toString().contains('SERVICE_NOT_AVAILABLE')) {
+        }
+        AppSharedPref.instance.setfcmToken(fcmToken!);
+      } catch (firebaseError) {
+        // Handle SERVICE_NOT_AVAILABLE error gracefully
+        if (firebaseError.toString().contains('SERVICE_NOT_AVAILABLE')) {
+          if (kDebugMode) {
             print('=======================================');
             print('⚠️  GOOGLE PLAY SERVICES NOT AVAILABLE');
             print('Error: $firebaseError');
             print('Fix: Use Android device with Google Play Services');
             print('Or: Use Android emulator with Play Services version');
             print('=======================================');
-            AppSharedPref.instance.setfcmToken('android-service-unavailable');
-          } else {
-            rethrow;
           }
+          AppSharedPref.instance.setfcmToken('android-service-unavailable');
+        } else {
+          rethrow;
         }
       }
-    } catch (e) {
+    }
+  } catch (e) {
+    if (kDebugMode) {
       print('=======================================');
       print('!!! FAILED TO GET FCM TOKEN !!!');
       print('Error: $e');
@@ -101,59 +104,11 @@ void main() async {
         'Ensure you are on a physical iOS device and have completed the native setup.',
       );
       print('=======================================');
-      // Set a fallback token so app doesn't crash
-      AppSharedPref.instance.setfcmToken('fallback-dev-token');
     }
+    // Set a fallback token so app doesn't crash
+    AppSharedPref.instance.setfcmToken('fallback-release-token');
   }
-  // --- END: MORE ROBUST TOKEN RETRIEVAL ---
-
-  if (!kIsWeb) {
-    channel = const AndroidNotificationChannel(
-      'high_importance_channel', // id
-      'High Importance Notifications', // title
-      description:
-          'This channel is used for important notifications.', // description
-      importance: Importance.high,
-    );
-
-    flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-    // Set presentation options for iOS
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-
-    // Create the Android Notification Channel
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
-
-    // Listen for foreground messages and display them using local notifications (for Android)
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      RemoteNotification? notification = message.notification;
-      AndroidNotification? android = message.notification?.android;
-      if (notification != null && android != null) {
-        flutterLocalNotificationsPlugin.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          NotificationDetails(
-            android: AndroidNotificationDetails(
-              channel.id,
-              channel.name,
-              channelDescription: channel.description,
-              icon: '@mipmap/ic_launcher',
-            ),
-          ),
-        );
-      }
-    });
-  }
+  // --- END: MORE ROBUST TOKEN RETRIEVAL (runs in both DEBUG and RELEASE) ---
 
   Get.put(BaseApiService());
   Get.put(ApiServices());

@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../services/sharedpref.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 // import 'package:table_calendar/table_calendar.dart'; // Not used in CustomCalendar
 import 'package:intl/intl.dart';
@@ -364,54 +365,116 @@ class AttendanceController extends GetxController {
     calendarFormat.value = format;
   }
 
-  // Modify punchInOut to require image
+  // Modify punchInOut to require image (skip in debug mode)
   Future<void> punchInOut() async {
     if (isPunching.value) return;
 
-    // Capture image first
+    // ✅ Only capture image in release mode
+
     await _captureImage();
     if (_capturedImage == null) return; // User cancelled or failed
 
     isPunching.value = true;
     try {
       final todayAttendance = await _api.fetchTodayAttendance();
-      final isPunchedIn =
-          todayAttendance != null && todayAttendance.outtime == null;
+      print(
+        "📊 Today's Attendance: intime=${todayAttendance?.intime}, outtime=${todayAttendance?.outtime}",
+      );
 
-      bool success;
-      if (isPunchedIn) {
-        // Punch Out with image
-        success = await _api.punchOut(
-          image: _capturedImage!, // Pass image
-        );
-        if (success) {
-          _baseApiService.showSnackbar(
-            "✅ Success",
-            "Punched out successfully!",
+      // ✅ FIXED: Check if intime is null to determine if NOT punched in yet
+      // If intime is null → User hasn't punched in → Call punchIn
+      // If intime is not null AND outtime is null → User punched in but not out → Call punchOut
+      final hasNotPunchedIn =
+          todayAttendance == null || todayAttendance.intime == null;
+      final isPunchedInButNotOut =
+          todayAttendance != null &&
+          todayAttendance.intime != null &&
+          todayAttendance.outtime == null;
+
+      bool success = false;
+      String successMessage = "";
+
+      if (hasNotPunchedIn) {
+        // Punch In with image (or null in debug mode)
+        print("🔵 Attempting Punch IN...");
+        try {
+          final attendanceModel = await _api.punchIn(
+            image: _capturedImage, // Pass image or null in debug
           );
+          print("Punch IN API Response: $attendanceModel");
+          success = attendanceModel != null;
+          successMessage = "Punched in successfully!";
+          print("Punch IN Result: success=$success");
+        } catch (punchInError) {
+          print("❌ Punch IN Error: $punchInError");
+          rethrow;
+        }
+      } else if (isPunchedInButNotOut) {
+        // Punch Out with image (or null in debug mode)
+        print("🔴 Attempting Punch OUT...");
+        try {
+          success = await _api.punchOut(
+            image: _capturedImage, // Pass image or null in debug
+          );
+          successMessage = "Punched out successfully!";
+          print("Punch OUT Result: success=$success");
+        } catch (punchOutError) {
+          print("❌ Punch OUT Error: $punchOutError");
+          rethrow;
         }
       } else {
-        // Punch In with image
-        final attendanceModel = await _api.punchIn(
-          image: _capturedImage!, // Pass image
-        );
-        success = attendanceModel != null;
-        if (success) {
-          _baseApiService.showSnackbar("✅ Success", "Punched in successfully!");
+        print("⚠️ Already punched out for today");
+        // ✅ FIXED: Use try-catch for snackbar
+        try {
+          await Future.delayed(const Duration(milliseconds: 300));
+          _baseApiService.showSnackbar(
+            "ℹ️ Info",
+            "You have already punched out for today.",
+          );
+        } catch (e) {
+          print("Snackbar error (Info): $e");
         }
+        return;
       }
 
       if (success) {
         await loadEvents();
         _capturedImage = null; // Clear after use
+
+        // ✅ FIXED: Show snackbar with delay to ensure overlay is ready
+        try {
+          await Future.delayed(const Duration(milliseconds: 300));
+          _baseApiService.showSnackbar("✅ Success", successMessage);
+        } catch (e) {
+          print("Snackbar error (Success): $e");
+        }
+      } else {
+        // API returned null or false
+        print("⚠️ Punch action returned false/null");
+        try {
+          await Future.delayed(const Duration(milliseconds: 300));
+          _baseApiService.showSnackbar(
+            "❌ Error",
+            "Punch action failed. Please try again.",
+            isError: true,
+          );
+        } catch (e) {
+          print("Snackbar error (Failure): $e");
+        }
       }
     } catch (e) {
       print("Error during punch in/out: $e");
-      _baseApiService.showSnackbar(
-        "❌ Error",
-        "Something went wrong. Please try again.",
-        isError: true,
-      );
+      // ✅ FIXED: Show error snackbar with delay and try-catch
+      try {
+        await Future.delayed(const Duration(milliseconds: 300));
+        _baseApiService.showSnackbar(
+          "❌ Error",
+          "Something went wrong. Please try again.",
+          isError: true,
+        );
+      } catch (snackbarError) {
+        print("Snackbar error (Exception): $snackbarError");
+      }
     } finally {
       isPunching.value = false;
     }
@@ -2046,7 +2109,7 @@ class AttendanceScreen extends StatelessWidget {
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: () => Get.back(),
+                          onPressed: () => Navigator.of(Get.context!).pop(),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: AppColors.textColorPrimary,
@@ -2086,7 +2149,7 @@ class AttendanceScreen extends StatelessWidget {
                         ),
                         child: ElevatedButton(
                           onPressed: () async {
-                            Get.back(); // Close dialog
+                            Navigator.of(Get.context!).pop(); // Close dialog
 
                             if (event.leaveId == null) {
                               _showErrorSnackbar(

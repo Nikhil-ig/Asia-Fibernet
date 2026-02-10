@@ -10,6 +10,7 @@ import 'package:pinput/pinput.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../services/apis/base_api_service.dart';
+import '../../../../theme/widgets/app_drawer.dart';
 import '../../../customer_complaint_controller.dart';
 import '../../../../services/apis/api_services.dart';
 import '../../../core/models/customer_view_complaint_model.dart';
@@ -1041,27 +1042,42 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
 
     // ✅ Extract tech ID directly (already int)
     final techId = complaint.assignedToId;
-    print("techId: ${complaint.assignedToId}");
+    print("🔵 techId: ${complaint.assignedToId}");
 
     // Fetch technician details
     Future<void> fetchTech() async {
+      print("🔵 Starting fetchTech with techId: $techId");
       if (techId == null) {
+        print("❌ techId is null");
         loading(false);
         return;
       }
 
       try {
+        print("🔵 Calling api.fetchTechnicianById($techId)");
         final data = await api.fetchTechnicianById(techId);
+        print("✅ API Response received: ${data != null ? 'Success' : 'Null'}");
+        if (data != null) {
+          print("✅ Technician name: ${data.name}");
+          print("✅ Technician profilePhoto: ${data.profilePhoto}");
+          print("✅ Technician profileImageUrl: ${data.profileImageUrl}");
+        }
         developer.log('Fetching technician with ID in Page: $techId');
         technician.value = data;
       } catch (e) {
+        print("❌ Exception in fetchTech: $e");
         developer.log('Failed to fetch technician: $e');
-        BaseApiService().showSnackbar(
-          "Error",
-          "Could not load technician details.",
-          isError: true,
-        );
+        try {
+          BaseApiService().showSnackbar(
+            "Error",
+            "Could not load technician details: $e",
+            isError: true,
+          );
+        } catch (snackbarError) {
+          print("❌ Snackbar error: $snackbarError");
+        }
       } finally {
+        print("🔵 Setting loading to false");
         loading(false);
       }
     }
@@ -1071,10 +1087,12 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
 
     return Obx(() {
       if (loading.value) {
+        print("⏳ Loading technician card");
         return _buildLoadingTechnicianCard();
       }
 
       final tech = technician.value;
+      print("📊 Tech value in Obx: ${tech != null ? 'Loaded' : 'Null'}");
       if (tech == null) {
         return Container(
           width: double.infinity,
@@ -1125,46 +1143,46 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
       }
 
       return Container(
-        padding: EdgeInsets.all(8),
+        padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          // gradient: LinearGradient(
-          //   begin: Alignment.topLeft,
-          //   end: Alignment.bottomRight,
-          //   colors: [
-          //     AppColors.secondary.withOpacity(0.08),
-          //     AppColors.primary.withOpacity(0.05),
-          //   ],
-          // ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary.withOpacity(0.08),
+              AppColors.secondary.withOpacity(0.05),
+            ],
+          ),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: AppColors.textColorHint.withOpacity(0.5),
+            color: AppColors.primary.withOpacity(0.2),
             width: 1.5,
           ),
-          // boxShadow: [
-          //   BoxShadow(
-          //     color: AppColors.secondary.withOpacity(0.15),
-          //     blurRadius: 16,
-          //     offset: Offset(0, 6),
-          //   ),
-          // ],
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.15),
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           children: [
             Row(
               children: [
-                // Profile Image with decorative border
+                // Profile Image
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.secondary.withOpacity(0.3),
+                      color: AppColors.primary.withOpacity(0.4),
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.secondary.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                        color: AppColors.primary.withOpacity(0.25),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
@@ -1184,15 +1202,15 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  AppColors.primary.withOpacity(0.2),
-                                  AppColors.secondary.withOpacity(0.1),
+                                  AppColors.primary.withOpacity(0.3),
+                                  AppColors.secondary.withOpacity(0.2),
                                 ],
                               ),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.person_rounded,
-                              color: AppColors.backgroundLight,
+                              color: AppColors.primary,
                               size: 22,
                             ),
                           ),
@@ -1206,15 +1224,15 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                AppColors.primary.withOpacity(0.1),
-                                AppColors.secondary.withOpacity(0.05),
+                                AppColors.primary.withOpacity(0.15),
+                                AppColors.secondary.withOpacity(0.08),
                               ],
                             ),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                              strokeWidth: 2.5,
                               valueColor: AlwaysStoppedAnimation<Color>(
                                 AppColors.primary,
                               ),
@@ -1225,328 +1243,137 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     ),
                   ),
                 ),
-                SizedBox(width: 12),
+                SizedBox(width: 16),
+                // Technician Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Name & Verified Badge
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              tech.name,
-                              style: AppText.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textColorPrimary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          // Container(
-                          //   padding: EdgeInsets.symmetric(
-                          //     horizontal: 10,
-                          //     vertical: 5,
-                          //   ),
-                          //   decoration: BoxDecoration(
-                          //     gradient: LinearGradient(
-                          //       colors: [
-                          //         AppColors.success.withOpacity(0.9),
-                          //         AppColors.success.withOpacity(0.7),
-                          //       ],
-                          //     ),
-                          //     borderRadius: BorderRadius.circular(12),
-                          //   ),
-                          //   child: Row(
-                          //     mainAxisSize: MainAxisSize.min,
-                          //     children: [
-                          //       Icon(
-                          //         Icons.verified_rounded,
-                          //         color: Colors.white,
-                          //         size: 14,
-                          //       ),
-                          //       // SizedBox(width: 4),
-                          //       // Text(
-                          //       //   'Verified',
-                          //       //   style: AppText.labelSmall.copyWith(
-                          //       //     color: Colors.white,
-                          //       //     fontSize: 10,
-                          //       //     fontWeight: FontWeight.w600,
-                          //       //   ),
-                          //       // ),
-                          //     ],
-                          //   ),
-                          // ),
-                        ],
+                      Text(
+                        tech.name,
+                        style: AppText.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textColorPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      // // SizedBox(height: 4),
-                      // Text(
-                      //   tech.companyName,
-                      //   style: AppText.bodySmall.copyWith(
-                      //     color: AppColors.success,
-                      //     fontWeight: FontWeight.w600,
-                      //   ),
-                      //   maxLines: 1,
-                      //   overflow: TextOverflow.ellipsis,
-                      // ),
-                      // SizedBox(height: 8),
-
-                      // Location
-                      //   Row(
-                      //     children: [
-                      //       Container(
-                      //         width: 32,
-                      //         height: 32,
-                      //         decoration: BoxDecoration(
-                      //           color: AppColors.primary.withOpacity(0.1),
-                      //           shape: BoxShape.circle,
+                      SizedBox(height: 6),
+                      // Row(
+                      //   children: [
+                      //     Icon(
+                      //       Icons.location_on_rounded,
+                      //       size: 14,
+                      //       color: AppColors.primary.withOpacity(0.7),
+                      //     ),
+                      //     SizedBox(width: 4),
+                      //     Expanded(
+                      //       child: Text(
+                      //         '${tech.city.isNotEmpty ? tech.city : "N/A"}, ${tech.state.isNotEmpty ? tech.state : "N/A"}',
+                      //         style: AppText.bodySmall.copyWith(
+                      //           color: AppColors.textColorSecondary,
+                      //           fontWeight: FontWeight.w500,
                       //         ),
-                      //         child: Icon(
-                      //           Icons.location_on_rounded,
-                      //           size: 16,
-                      //           color: AppColors.primary,
-                      //         ),
+                      //         maxLines: 1,
+                      //         overflow: TextOverflow.ellipsis,
                       //       ),
-                      //       // SizedBox(width: 8),
-                      //       // Expanded(
-                      //       //   child: Text(
-                      //       //     '${tech.city}, ${tech.state}',
-                      //       //     style: AppText.bodyMedium.copyWith(
-                      //       //       color: AppColors.textColorSecondary,
-                      //       //     ),
-                      //       //     maxLines: 1,
-                      //       //     overflow: TextOverflow.ellipsis,
-                      //       //   ),
-                      //       // ),
-                      //     ],
-                      //   ),
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   ),
                 ),
               ],
             ),
-
-            // SizedBox(height: 16),
-
-            // Contact Information & Call Button
-            // Container(
-            //   padding: EdgeInsets.all(12),
-            //   decoration: BoxDecoration(
-            //     color: Colors.white,
-            //     borderRadius: BorderRadius.circular(16),
-            //     border: Border.all(color: AppColors.inputBackground),
-            //   ),
-            //   child: Row(
-            //     children: [
-            //       // Phone Info
-            //       Expanded(
-            //         child: Column(
-            //           crossAxisAlignment: CrossAxisAlignment.start,
-            //           children: [
-            //             Text(
-            //               "Contact Number",
-            //               style: AppText.labelSmall.copyWith(
-            //                 color: AppColors.textColorSecondary,
-            //                 fontWeight: FontWeight.w600,
-            //               ),
-            //             ),
-            //             SizedBox(height: 4),
-            //             Text(
-            //               tech.workPhone.toString(),
-            //               style: AppText.bodyMedium.copyWith(
-            //                 color: AppColors.textColorPrimary,
-            //                 fontWeight: FontWeight.w600,
-            //               ),
-            //             ),
-            //           ],
-            //         ),
-            //       ),
-
-            //       // Call Button
-            //       Container(
-            //         decoration: BoxDecoration(
-            //           shape: BoxShape.circle,
-            //           gradient: LinearGradient(
-            //             colors: [AppColors.primary, AppColors.primaryDark],
-            //           ),
-            //           boxShadow: [
-            //             BoxShadow(
-            //               color: AppColors.primary.withOpacity(0.4),
-            //               blurRadius: 8,
-            //               offset: Offset(0, 3),
-            //             ),
-            //           ],
-            //         ),
-            //         child: IconButton(
-            //           onPressed: () {
-            //             Get.bottomSheet(
-            //               Container(
-            //                 padding: EdgeInsets.all(24),
-            //                 decoration: BoxDecoration(
-            //                   color: Colors.white,
-            //                   borderRadius: BorderRadius.vertical(
-            //                     top: Radius.circular(28),
-            //                   ),
-            //                 ),
-            //                 child: Column(
-            //                   mainAxisSize: MainAxisSize.min,
-            //                   children: [
-            //                     // Drag handle
-            //                     Center(
-            //                       child: Container(
-            //                         width: 48,
-            //                         height: 5,
-            //                         decoration: BoxDecoration(
-            //                           color: Colors.grey[300],
-            //                           borderRadius: BorderRadius.circular(3),
-            //                         ),
-            //                       ),
-            //                     ),
-            //                     SizedBox(height: 20),
-
-            //                     Text(
-            //                       "Contact Technician",
-            //                       style: AppText.headingSmall.copyWith(
-            //                         fontWeight: FontWeight.w700,
-            //                       ),
-            //                     ),
-            //                     SizedBox(height: 20),
-
-            //                     // Technician Info
-            //                     Container(
-            //                       padding: EdgeInsets.all(16),
-            //                       decoration: BoxDecoration(
-            //                         color: AppColors.inputBackground,
-            //                         borderRadius: BorderRadius.circular(20),
-            //                       ),
-            //                       child: Row(
-            //                         children: [
-            //                           Container(
-            //                             width: 56,
-            //                             height: 56,
-            //                             decoration: BoxDecoration(
-            //                               shape: BoxShape.circle,
-            //                               gradient: LinearGradient(
-            //                                 colors: [
-            //                                   AppColors.primary.withOpacity(
-            //                                     0.2,
-            //                                   ),
-            //                                   AppColors.secondary.withOpacity(
-            //                                     0.1,
-            //                                   ),
-            //                                 ],
-            //                               ),
-            //                             ),
-            //                             child: Icon(
-            //                               Icons.person_rounded,
-            //                               color: AppColors.primary,
-            //                               size: 28,
-            //                             ),
-            //                           ),
-            //                           SizedBox(width: 16),
-            //                           Expanded(
-            //                             child: Column(
-            //                               crossAxisAlignment:
-            //                                   CrossAxisAlignment.start,
-            //                               children: [
-            //                                 Text(
-            //                                   tech.name,
-            //                                   style: AppText.labelLarge
-            //                                       .copyWith(
-            //                                         fontWeight: FontWeight.w700,
-            //                                       ),
-            //                                 ),
-            //                                 SizedBox(height: 4),
-            //                                 Text(
-            //                                   tech.companyName,
-            //                                   style: AppText.bodySmall.copyWith(
-            //                                     color:
-            //                                         AppColors
-            //                                             .textColorSecondary,
-            //                                   ),
-            //                                 ),
-            //                               ],
-            //                             ),
-            //                           ),
-            //                         ],
-            //                       ),
-            //                     ),
-            //                     SizedBox(height: 20),
-
-            //                     // Call Button
-            //                     SizedBox(
-            //                       width: double.infinity,
-            //                       height: 56,
-            //                       child: ElevatedButton.icon(
-            //                         onPressed:
-            //                         // () => launchUrl(
-            //                         //   Uri.parse('tel:${tech.workPhone}'),
-            //                         // ),
-            //                         () {
-            //                           Get.to(
-            //                             CallScreen(
-            //                               phoneNumber:
-            //                                   tech.workPhone.toString(),
-            //                             ),
-            //                           );
-            //                         },
-            //                         icon: const Icon(
-            //                           Icons.call_rounded,
-            //                           size: 24,
-            //                         ),
-            //                         label: Text(
-            //                           "Call",
-            //                           style: AppText.button.copyWith(
-            //                             fontWeight: FontWeight.w700,
-            //                           ),
-            //                         ),
-            //                         style: ElevatedButton.styleFrom(
-            //                           backgroundColor: AppColors.success,
-            //                           foregroundColor: Colors.white,
-            //                           shape: RoundedRectangleBorder(
-            //                             borderRadius: BorderRadius.circular(16),
-            //                           ),
-            //                           elevation: 4,
-            //                         ),
-            //                       ),
-            //                     ),
-            //                     SizedBox(height: 12),
-
-            //                     // Close Button
-            //                     TextButton(
-            //                       onPressed: Get.back,
-            //                       child: Text(
-            //                         "Cancel",
-            //                         style: AppText.bodyMedium.copyWith(
-            //                           color: AppColors.textColorSecondary,
-            //                         ),
-            //                       ),
-            //                     ),
-            //                   ],
-            //                 ),
-            //               ),
-            //               isScrollControlled: true,
-            //             );
-            //           },
-            //           icon: Icon(
-            //             Icons.call_rounded,
-            //             color: Colors.white,
-            //             size: 22,
-            //           ),
-            //           style: ButtonStyle(
-            //             backgroundColor: MaterialStateProperty.all(
-            //               Colors.transparent,
-            //             ),
-            //             shadowColor: MaterialStateProperty.all(
-            //               Colors.transparent,
-            //             ),
-            //           ),
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
+            SizedBox(height: 16),
+            // Contact Section with Call Button
+            Container(
+              padding: EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Contact Technician",
+                          style: AppText.labelSmall.copyWith(
+                            color: AppColors.textColorSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        // SizedBox(height: 6),
+                        // Text(
+                        //   tech.workPhone?.toString() ?? "N/A",
+                        //   style: AppText.bodyMedium.copyWith(
+                        //     color: AppColors.primary,
+                        //     fontWeight: FontWeight.w700,
+                        //     letterSpacing: 0.5,
+                        //   ),
+                        // ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        makePhoneCall();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.success.withOpacity(0.9),
+                              AppColors.success.withOpacity(0.7),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.success.withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.call_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              "Call",
+                              style: AppText.labelMedium.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -2000,299 +1827,338 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (BuildContext ctx) {
-          return GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: bottomSheetHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 48,
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(3),
-                            ),
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: bottomSheetHeight),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 48,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(3),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Center(
-                          child: Text(
-                            "Raise a Complaint",
-                            style: AppText.headingMedium.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textColorPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        Text(
-                          "Category",
-                          style: AppText.labelMedium.copyWith(
-                            fontWeight: FontWeight.w600,
+                      ),
+                      const SizedBox(height: 20),
+                      Center(
+                        child: Text(
+                          "Raise a Complaint",
+                          style: AppText.headingMedium.copyWith(
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textColorPrimary,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Obx(() {
-                          if (controller.isCategoriesLoading.value) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          final categories = controller.ticketCategories;
-                          if (categories.isEmpty) {
-                            return Text(
-                              "No categories available",
-                              style: AppText.bodyMedium,
-                            );
-                          }
-                          final items =
-                              categories.map<DropdownMenuItem<CategoryData>>((
-                                cat,
-                              ) {
-                                return DropdownMenuItem<CategoryData>(
-                                  value: cat,
-                                  child: Text(
-                                    cat.categoryName,
-                                    style: AppText.bodyMedium,
-                                  ),
-                                );
-                              }).toList();
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.inputBackground,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.textColorHint.withOpacity(0.4),
-                              ),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<CategoryData>(
-                                value: selectedCategory.value,
-                                isExpanded: true,
-                                icon: Icon(
-                                  Icons.arrow_drop_down_rounded,
-                                  color: AppColors.primary,
-                                  size: 28,
-                                ),
-                                style: AppText.bodyMedium.copyWith(
-                                  color: AppColors.textColorPrimary,
-                                ),
-                                onChanged: (CategoryData? newValue) {
-                                  if (newValue != null) {
-                                    selectedCategory.value = newValue;
-                                    selectedSubcategory.value = null;
-                                  }
-                                },
-                                items: items,
-                                hint: Text(
-                                  "Select a Category",
-                                  style: AppText.bodyMedium.copyWith(
-                                    color: AppColors.textColorHint,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 20),
-                        Obx(() {
-                          final cat = selectedCategory.value;
-                          if (cat == null) {
-                            return const SizedBox.shrink();
-                          }
-                          final subcategories = cat.subcategories;
-                          if (subcategories.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          final subItems =
-                              subcategories.map<DropdownMenuItem<SubCategory>>((
-                                sub,
-                              ) {
-                                return DropdownMenuItem<SubCategory>(
-                                  value: sub,
-                                  child: Text(
-                                    sub.subcategoryName,
-                                    style: AppText.bodyMedium,
-                                  ),
-                                );
-                              }).toList();
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Sub Category",
-                                style: AppText.labelMedium.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textColorPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.inputBackground,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppColors.textColorHint.withOpacity(
-                                      0.4,
-                                    ),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<SubCategory>(
-                                    value: selectedSubcategory.value,
-                                    isExpanded: true,
-                                    icon: Icon(
-                                      Icons.arrow_drop_down_rounded,
-                                      color: AppColors.primary,
-                                      size: 28,
-                                    ),
-                                    style: AppText.bodyMedium.copyWith(
-                                      color: AppColors.textColorPrimary,
-                                    ),
-                                    onChanged: (SubCategory? newValue) {
-                                      selectedSubcategory.value = newValue;
-                                    },
-                                    items: subItems,
-                                    hint: Text(
-                                      "Select SubCategory",
-                                      style: AppText.bodyMedium.copyWith(
-                                        color: AppColors.textColorHint,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
-                        const SizedBox(height: 20),
-                        Text(
-                          "Description",
-                          style: AppText.labelMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textColorPrimary,
-                          ),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        "Category",
+                        style: AppText.labelMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textColorPrimary,
                         ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: descCtrl,
-                          focusNode: descFocusNode,
-                          maxLines: 4,
-                          minLines: 3,
-                          decoration: InputDecoration(
-                            hintText: "Describe your issue in detail",
-                            alignLabelWithHint: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      const SizedBox(height: 8),
+                      Obx(() {
+                        if (controller.isCategoriesLoading.value) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final categories = controller.ticketCategories;
+                        if (categories.isEmpty) {
+                          return Text(
+                            "No categories available",
+                            style: AppText.bodyMedium,
+                          );
+                        }
+                        final items =
+                            categories.map<DropdownMenuItem<CategoryData>>((
+                              cat,
+                            ) {
+                              return DropdownMenuItem<CategoryData>(
+                                value: cat,
+                                child: Text(
+                                  cat.categoryName,
+                                  style: AppText.bodyMedium,
+                                ),
+                              );
+                            }).toList();
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.inputBackground,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.textColorHint.withOpacity(0.4),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<CategoryData>(
+                              value: selectedCategory.value,
+                              isExpanded: true,
+                              icon: Icon(
+                                Icons.arrow_drop_down_rounded,
                                 color: AppColors.primary,
-                                width: 2,
+                                size: 28,
+                              ),
+                              style: AppText.bodyMedium.copyWith(
+                                color: AppColors.textColorPrimary,
+                              ),
+                              onChanged: (CategoryData? newValue) {
+                                if (newValue != null) {
+                                  selectedCategory.value = newValue;
+                                  selectedSubcategory.value = null;
+                                }
+                              },
+                              items: items,
+                              hint: Text(
+                                "Select a Category",
+                                style: AppText.bodyMedium.copyWith(
+                                  color: AppColors.textColorHint,
+                                ),
                               ),
                             ),
-                            filled: true,
-                            fillColor: AppColors.inputBackground,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 20),
+                      Obx(() {
+                        final cat = selectedCategory.value;
+                        if (cat == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final subcategories = cat.subcategories;
+                        if (subcategories.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        final subItems =
+                            subcategories.map<DropdownMenuItem<SubCategory>>((
+                              sub,
+                            ) {
+                              return DropdownMenuItem<SubCategory>(
+                                value: sub,
+                                child: Text(
+                                  sub.subcategoryName,
+                                  style: AppText.bodyMedium,
+                                ),
+                              );
+                            }).toList();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Sub Category",
+                              style: AppText.labelMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textColorPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.inputBackground,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppColors.textColorHint.withOpacity(
+                                    0.4,
+                                  ),
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<SubCategory>(
+                                  value: selectedSubcategory.value,
+                                  isExpanded: true,
+                                  icon: Icon(
+                                    Icons.arrow_drop_down_rounded,
+                                    color: AppColors.primary,
+                                    size: 28,
+                                  ),
+                                  style: AppText.bodyMedium.copyWith(
+                                    color: AppColors.textColorPrimary,
+                                  ),
+                                  onChanged: (SubCategory? newValue) {
+                                    selectedSubcategory.value = newValue;
+                                  },
+                                  items: subItems,
+                                  hint: Text(
+                                    "Select SubCategory",
+                                    style: AppText.bodyMedium.copyWith(
+                                      color: AppColors.textColorHint,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Description",
+                        style: AppText.labelMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textColorPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: descCtrl,
+                        focusNode: descFocusNode,
+                        maxLines: 4,
+                        minLines: 3,
+                        decoration: InputDecoration(
+                          hintText: "Describe your issue in detail",
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: AppColors.primary,
+                              width: 2,
                             ),
                           ),
-                          style: AppText.bodyMedium.copyWith(
-                            color: AppColors.textColorPrimary,
+                          filled: true,
+                          fillColor: AppColors.inputBackground,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        Obx(
-                          () => _buildImageUploadSection(
-                            context,
-                            selectedImage.value,
-                            (file) => selectedImage.value = file,
-                            () => selectedImage.value = null,
-                          ),
+                        style: AppText.bodyMedium.copyWith(
+                          color: AppColors.textColorPrimary,
                         ),
-                        const SizedBox(height: 32),
-                        SizedBox(
+                      ),
+                      const SizedBox(height: 24),
+                      Obx(
+                        () => _buildImageUploadSection(
+                          context,
+                          selectedImage.value,
+                          (file) => selectedImage.value = file,
+                          () => selectedImage.value = null,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Obx(
+                        () => SizedBox(
                           width: double.infinity,
                           height: 54,
                           child: ElevatedButton(
-                            onPressed: () {
-                              if (selectedCategory.value == null) {
-                                BaseApiService().showSnackbar(
-                                  "Required",
-                                  "Please select a category",
-                                  isError: true,
-                                );
-                                return;
-                              }
-                              if (selectedSubcategory.value == null) {
-                                BaseApiService().showSnackbar(
-                                  "Required",
-                                  "Please select a subcategory",
-                                  isError: true,
-                                );
-                                return;
-                              }
-                              if (descCtrl.text.isEmpty) {
-                                BaseApiService().showSnackbar(
-                                  "Required",
-                                  "Please add a description",
-                                  isError: true,
-                                );
-                                return;
-                              }
-                              controller.addComplaint(
-                                category: selectedCategory.value!.categoryName,
-                                subCategory:
-                                    selectedSubcategory.value!.subcategoryName,
-                                description: descCtrl.text,
-                                image: selectedImage.value,
-                              );
-                              Navigator.of(context).pop();
-                            },
+                            onPressed:
+                                controller.isSubmittingComplaint.value
+                                    ? null
+                                    : () {
+                                      if (selectedCategory.value == null) {
+                                        BaseApiService().showSnackbar(
+                                          "Required",
+                                          "Please select a category",
+                                          isError: true,
+                                        );
+                                        return;
+                                      }
+                                      if (selectedSubcategory.value == null) {
+                                        BaseApiService().showSnackbar(
+                                          "Required",
+                                          "Please select a subcategory",
+                                          isError: true,
+                                        );
+                                        return;
+                                      }
+                                      if (descCtrl.text.isEmpty) {
+                                        BaseApiService().showSnackbar(
+                                          "Required",
+                                          "Please add a description",
+                                          isError: true,
+                                        );
+                                        return;
+                                      }
+                                      controller.addComplaint(
+                                        category:
+                                            selectedCategory
+                                                .value!
+                                                .categoryName,
+                                        subCategory:
+                                            selectedSubcategory
+                                                .value!
+                                                .subcategoryName,
+                                        description: descCtrl.text,
+                                        image: selectedImage.value,
+                                      );
+                                    },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
+                              backgroundColor:
+                                  controller.isSubmittingComplaint.value
+                                      ? AppColors.primary.withOpacity(0.6)
+                                      : AppColors.primary,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              elevation: 4,
+                              elevation:
+                                  controller.isSubmittingComplaint.value
+                                      ? 0
+                                      : 4,
                               shadowColor: AppColors.primary.withOpacity(0.4),
                             ),
-                            child: Text(
-                              "Submit Complaint",
-                              style: AppText.button.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                            child:
+                                controller.isSubmittingComplaint.value
+                                    ? Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          "Submitting...",
+                                          style: AppText.button.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                    : Text(
+                                      "Submit Complaint",
+                                      style: AppText.button.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
               ),
@@ -2552,6 +2418,9 @@ Future<File?> _pickImage(ImageSource source) async {
     );
     return null;
   }
+
+  /// Helper method to make a phone call
+  ///
 }
 
 // Dummy OTP Screen

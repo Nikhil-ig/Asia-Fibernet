@@ -321,7 +321,8 @@ class ProfileController extends GetxController {
                                 ],
                               ),
                               child: ElevatedButton(
-                                onPressed: () => Get.back(),
+                                onPressed:
+                                    () => Navigator.of(Get.context!).pop(),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
@@ -392,7 +393,7 @@ class ProfileController extends GetxController {
                                           ftthNo: ftthCtrl.text,
                                         );
                                     if (success) {
-                                      Get.back();
+                                      Navigator.of(Get.context!).pop();
                                       _showDisconnectionSuccess();
                                     }
                                   }
@@ -648,7 +649,7 @@ class ProfileController extends GetxController {
                   ],
                 ),
                 child: ElevatedButton(
-                  onPressed: () => Get.back(),
+                  onPressed: () => Navigator.of(Get.context!).pop(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -827,7 +828,7 @@ class ProfileController extends GetxController {
                               ],
                             ),
                             child: ElevatedButton(
-                              onPressed: () => Get.back(),
+                              onPressed: () => Navigator.of(Get.context!).pop(),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
@@ -1122,7 +1123,7 @@ class ProfileController extends GetxController {
 
         // Close edit screen after success
         Future.delayed(Duration(seconds: 2), () {
-          Get.back(); // Go back to view screen
+          Navigator.of(Get.context!).pop(); // Go back to view screen
         });
       }
     } catch (e) {
@@ -2150,28 +2151,32 @@ class EditProfileScreen extends GetView<ProfileController> {
                                   child: CircleAvatar(
                                     radius: 60,
                                     backgroundImage:
-                                        controller
-                                                    .customerProfile
-                                                    .value!
-                                                    .profilePhoto ==
-                                                null
+                                        controller.profileImage != null
                                             ? FileImage(
                                               controller.profileImage!.value,
                                             )
-                                            : NetworkImage(
-                                              controller
-                                                  .customerProfile
-                                                  .value!
-                                                  .fullProfileImageUrl!,
-                                            ),
+                                            : (controller
+                                                            .customerProfile
+                                                            .value
+                                                            ?.profilePhoto ==
+                                                        null
+                                                    ? null
+                                                    : NetworkImage(
+                                                      controller
+                                                          .customerProfile
+                                                          .value!
+                                                          .fullProfileImageUrl!,
+                                                    ))
+                                                as ImageProvider?,
                                     backgroundColor: AppColors.primary
                                         .withOpacity(0.1),
                                     child:
-                                        controller
-                                                    .customerProfile
-                                                    .value!
-                                                    .profilePhoto ==
-                                                null
+                                        (controller.profileImage == null &&
+                                                controller
+                                                        .customerProfile
+                                                        .value
+                                                        ?.profilePhoto ==
+                                                    null)
                                             ? Icon(
                                               Iconsax.user,
                                               size: 50,
@@ -2461,7 +2466,7 @@ class RelocationRequestController extends GetxController {
     try {
       final result = await _api.submitRelocationRequest(body);
       if (result != null) {
-        Get.back(); // Close bottom sheet
+        Navigator.of(Get.context!).pop(); // Close bottom sheet
         BaseApiService().showSnackbar(
           'Success',
           'Relocation request submitted!\nTicket: ${result['data']['ticket_no']}',
