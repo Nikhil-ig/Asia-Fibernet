@@ -8,6 +8,7 @@ import '../../customer/ui/screen/pages/referral_screen.dart';
 import '../../customer/ui/screen/settings_screen.dart';
 import '../../services/apis/api_services.dart';
 import '../../services/sharedpref.dart';
+import '../../technician/ui/screens/notifications_screen.dart';
 import '../../theme/colors.dart';
 import '../../theme/theme.dart';
 import '../../customer/ui/screen/pages/complaints_page.dart';
@@ -213,7 +214,13 @@ class ScaffoldScreen extends StatelessWidget {
           ),
           title: _AppBarGreeting(),
           centerTitle: false,
-          // actions: [_QuickActionsButton()],
+          actions: [
+            // _QuickActionsButton()],
+            IconButton(
+              icon: const Icon(Iconsax.notification, size: 24),
+              onPressed: () => Get.to(() => NotificationScreen()),
+            ),
+          ],
         ),
         body: screens[currentIndex],
         // Remove floating action button and bottom navigation bar

@@ -393,15 +393,86 @@ class BaseApiService {
     _lastSnackbarMessage = message;
     _lastSnackbarTime = now;
 
-    Get.snackbar(
-      title,
-      message,
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: isError ? Colors.red : Colors.green,
-      colorText: Colors.white,
-      duration: const Duration(seconds: 3),
-      mainButton: mainButton,
-    );
+    // Prefer Get.snackbar when an Overlay is available. Get.snackbar internally
+    // requires an Overlay - calling it when an Overlay is missing throws.
+    // Check for a valid overlay context first and fall back to ScaffoldMessenger
+    // or a simple dialog if not available.
+    try {
+      final ctx = Get.overlayContext ?? Get.context;
+      if (ctx != null) {
+        // Guard: ensure there's an Overlay ancestor before calling Get.snackbar.
+        // Overlay.of can throw a FlutterError when no Overlay is present, so
+        // call it inside try/catch and treat failures as 'no overlay'.
+        bool hasOverlay = false;
+        try {
+          // If Overlay.of doesn't throw, we consider an overlay present.
+          Overlay.of(ctx);
+          hasOverlay = true;
+        } catch (_) {
+          hasOverlay = false;
+        }
+
+        if (hasOverlay) {
+          try {
+            // Use Get.snackbar which relies on the overlay.
+            Get.snackbar(
+              title,
+              message,
+              snackPosition: SnackPosition.TOP,
+              backgroundColor: isError ? Colors.red : Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 3),
+              mainButton: mainButton,
+            );
+            return;
+          } catch (_) {
+            // If Get.snackbar unexpectedly fails, fall through to other fallbacks.
+          }
+        }
+      }
+    } catch (e) {
+      // If anything goes wrong while checking contexts/overlay, fall back below.
+    }
+
+    // Fallback: try ScaffoldMessenger with Get.context or a safe dialog
+    final safeCtx = Get.context;
+    if (safeCtx != null) {
+      try {
+        ScaffoldMessenger.of(safeCtx).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: isError ? Colors.red : Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      } catch (_) {
+        // ignore
+      }
+
+      try {
+        showDialog(
+          context: safeCtx,
+          builder:
+              (_) => AlertDialog(
+                title: Text(title),
+                content: Text(message),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(safeCtx).pop(),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+        );
+        return;
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    // Last resort: log to console
+    developer.log('Snackbar fallback: $title - $message');
   }
 
   String? prependBaseUrl(String? path) {

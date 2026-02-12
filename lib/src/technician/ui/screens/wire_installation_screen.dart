@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../theme/colors.dart';
 import '../../../theme/theme.dart';
@@ -346,7 +347,7 @@ class WireInstallationSubmissionScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(Get.context!).pop(),
+            onPressed: () => safePop(),
             icon: Icon(
               Icons.arrow_back_ios_rounded,
               color: Colors.white,

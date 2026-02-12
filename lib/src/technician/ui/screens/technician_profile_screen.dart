@@ -11,6 +11,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../../auth/core/controller/binding/login_binding.dart';
 import '../../../auth/ui/login_screen.dart';
@@ -724,11 +725,9 @@ class TechnicianProfileEditController extends GetxController {
 
           // ✅ Navigate back using Navigator (avoid Get.back issues)
           await Future.delayed(Duration(milliseconds: 500));
-          if (Get.isDialogOpen ?? false) {
-            Navigator.of(Get.context!).pop(true);
-          } else {
-            Navigator.of(Get.context!).pop(true);
-          }
+          // Use safePop to avoid using Get.context! directly which may be
+          // deactivated when called from async flows.
+          safePop(null, true);
         } else {
           debugPrint("⚠️ Failed to fetch updated profile data");
           BaseApiService().showSnackbar(
@@ -737,11 +736,7 @@ class TechnicianProfileEditController extends GetxController {
             isError: false,
           );
           await Future.delayed(Duration(milliseconds: 500));
-          if (Get.isDialogOpen ?? false) {
-            Navigator.of(Get.context!).pop(true);
-          } else {
-            Navigator.of(Get.context!).pop(true);
-          }
+          safePop(null, true);
         }
       } else {
         debugPrint("❌ Profile update failed");
@@ -956,57 +951,58 @@ class TechnicianProfileEditScreen extends StatelessWidget {
                 SizedBox(height: 24.h),
 
                 // Bank Details Card
-                _buildEditableCard("Bank Details", [
-                  _buildTextFormField(
-                    label: "Bank Name",
-                    icon: Iconsax.bank,
-                    controller: controller.bankNameController,
-                    onChanged: (value) {
-                      controller.bankName.value = value;
-                    },
-                    validator:
-                        (value) =>
-                            (value?.isEmpty ?? true) ? "Enter bank name" : null,
-                  ),
-                  _buildTextFormField(
-                    label: "Branch Name",
-                    icon: Iconsax.bank,
-                    controller: controller.branchNameController,
-                    onChanged: (value) {
-                      controller.branchName.value = value;
-                    },
-                    validator:
-                        (value) =>
-                            (value?.isEmpty ?? true)
-                                ? "Enter branch name"
-                                : null,
-                  ),
-                  _buildTextFormField(
-                    label: "IFSC Code",
-                    icon: Iconsax.document_code,
-                    controller: controller.ifscCodeController,
-                    onChanged: (value) {
-                      controller.ifscCode.value = value;
-                    },
-                    validator:
-                        (value) =>
-                            (value?.isEmpty ?? true) ? "Enter IFSC code" : null,
-                  ),
-                  _buildTextFormField(
-                    label: "Account Number",
-                    icon: Iconsax.wallet,
-                    controller: controller.accountNoController,
-                    onChanged: (value) {
-                      controller.accountNo.value = value;
-                    },
-                    keyboardType: TextInputType.number,
-                    validator:
-                        (value) =>
-                            (value?.isEmpty ?? true)
-                                ? "Enter account number"
-                                : null,
-                  ),
-                ]),
+                // _buildEditableCard("Bank Details", [
+                //   _buildTextFormField(
+                //     label: "Bank Name",
+                //     icon: Iconsax.bank,
+                //     controller: controller.bankNameController,
+                //     onChanged: (value) {
+                //       controller.bankName.value = value;
+                //     },
+                //     validator:
+                //         (value) =>
+                //             (value?.isEmpty ?? true) ? "Enter bank name" : null,
+                //   ),
+                //   _buildTextFormField(
+                //     label: "Branch Name",
+                //     icon: Iconsax.bank,
+                //     controller: controller.branchNameController,
+                //     onChanged: (value) {
+                //       controller.branchName.value = value;
+                //     },
+                //     validator:
+                //         (value) =>
+                //             (value?.isEmpty ?? true)
+                //                 ? "Enter branch name"
+                //                 : null,
+                //   ),
+                //   _buildTextFormField(
+                //     label: "IFSC Code",
+                //     icon: Iconsax.document_code,
+                //     controller: controller.ifscCodeController,
+                //     onChanged: (value) {
+                //       controller.ifscCode.value = value;
+                //     },
+                //     validator:
+                //         (value) =>
+                //             (value?.isEmpty ?? true) ? "Enter IFSC code" : null,
+                //   ),
+                //   _buildTextFormField(
+                //     label: "Account Number",
+                //     icon: Iconsax.wallet,
+                //     controller: controller.accountNoController,
+                //     onChanged: (value) {
+                //       controller.accountNo.value = value;
+                //     },
+                //     keyboardType: TextInputType.number,
+                //     validator:
+                //         (value) =>
+                //             (value?.isEmpty ?? true)
+                //                 ? "Enter account number"
+                //                 : null,
+                //   ),
+                // ]
+                // ),
                 SizedBox(height: 24.h),
 
                 // KYC Details Card

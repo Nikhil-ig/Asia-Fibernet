@@ -1,6 +1,7 @@
 // lib/src/widgets/app_drawer.dart
 import 'package:asia_fibernet/src/services/apis/api_services.dart';
 import 'package:asia_fibernet/src/services/apis/base_api_service.dart';
+import 'package:asia_fibernet/src/services/apis/technician_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
@@ -11,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../auth/ui/scaffold_screen.dart';
 import '../../auth/ui/widgets/account_switcher.dart';
 // import '../../chatbot/ui/chat_screen.dart';
+import '../../customer/core/models/technician_model.dart';
 import '../../services/sharedpref.dart';
 import '../../theme/colors.dart';
 import '../../theme/theme.dart';
@@ -673,7 +675,7 @@ class _DrawerFooter extends StatelessWidget {
               _FooterButton(
                 icon: Iconsax.call,
                 label: "Support",
-                onTap: () => makePhoneCall(),
+                onTap: () => makeSupportCall(),
               ),
             ],
           ),
@@ -742,7 +744,7 @@ class _FooterButton extends StatelessWidget {
   }
 }
 
-Future<void> makePhoneCall({String phoneNumber = "7090909029"}) async {
+Future<void> makeSupportCall({String phoneNumber = "7090909029"}) async {
   try {
     final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
     if (await canLaunchUrl(phoneUri)) {
@@ -768,4 +770,264 @@ Future<void> makePhoneCall({String phoneNumber = "7090909029"}) async {
       ),
     );
   }
+}
+
+Future<void> makePhoneCall(techId) async {
+  showCallRequestPopup(Get.context!);
+  try {
+    // Get technician ID from shared preferences
+    // final techId = AppSharedPref.instance.getUserID()?.toString() ?? "";
+
+    debugPrint('📞 Making phone call...');
+    // debugPrint('Tech ID: $techId, Mobile: $phoneNumber');
+
+    // Call the API to log the call
+    final response = await ApiServices().callTechnician(
+      techId: techId.toString(),
+      mobileNumber: AppSharedPref.instance.getMobileNumber()!,
+    );
+
+    if (response != null && response['status'] == 'success') {
+      debugPrint('✅ Call logged successfully');
+    } else {
+      debugPrint('⚠️ Call API response: $response');
+    }
+
+    // Now make the actual phone call
+    // final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    // if (await canLaunchUrl(phoneUri)) {
+    //   await launchUrl(phoneUri);
+    //   debugPrint('✅ Phone call launched: $phoneNumber');
+    // } else {
+    //   debugPrint('❌ Could not launch phone dialer');
+
+    //   if (Get.context != null) {
+    //     ScaffoldMessenger.of(Get.context!).showSnackBar(
+    const SnackBar(
+      content: Text('Could not launch phone dialer'),
+      duration: Duration(seconds: 2),
+      // ),
+    );
+    // }
+    // }
+  } catch (e) {
+    debugPrint('❌ Error launching call: $e');
+
+    if (Get.context != null) {
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        SnackBar(
+          content: Text('Error launching phone call: $e'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+}
+
+/// Show call request popup dialog
+void showCallRequestPopup(BuildContext context) {
+  final callStatus = 'sending'.obs; // sending, success, error
+  final errorMessage = ''.obs;
+
+  showDialog(
+    context: context,
+    // barrierDismissible: false,
+    barrierColor: Colors.black.withOpacity(0.6),
+    builder: (context) {
+      // Auto-close dialog after 5 seconds
+      Future.delayed(const Duration(seconds: 5), () {
+        if (context.mounted) {
+          Navigator.pop(context);
+        }
+      });
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 8,
+        backgroundColor: Colors.white,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, Colors.white.withOpacity(0.98)],
+            ),
+          ),
+          padding: const EdgeInsets.all(32),
+          child: Stack(
+            children: [
+              // Close button in top-right
+              Positioned(
+                top: 12,
+                right: 12,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade200,
+                    ),
+                    child: Icon(
+                      Icons.close,
+                      size: 20,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ),
+              // Main content
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon with animation
+                  if (callStatus.value == 'sending')
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: const Duration(milliseconds: 600),
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary.withOpacity(0.2),
+                                  AppColors.primary.withOpacity(0.05),
+                                ],
+                              ),
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary,
+                                  ),
+                                  strokeWidth: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  else if (callStatus.value == 'success')
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green.withOpacity(0.2),
+                            Colors.green.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 60,
+                          color: Colors.green,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.red.withOpacity(0.2),
+                            Colors.red.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.error_rounded,
+                          size: 60,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    callStatus.value == 'sending'
+                        ? 'Initiating Call'
+                        : callStatus.value == 'success'
+                        ? 'Call Initiated'
+                        : 'Failed',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Message
+                  Text(
+                    callStatus.value == 'sending'
+                        ? 'Sending call request...'
+                        : callStatus.value == 'success'
+                        ? 'Call request sent successfully!'
+                        : errorMessage.value.isNotEmpty
+                        ? errorMessage.value
+                        : 'Failed to send call request',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Button
+                  if (callStatus.value != 'sending')
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              callStatus.value == 'success'
+                                  ? Colors.green
+                                  : Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          callStatus.value == 'success' ? 'Done' : 'Try Again',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

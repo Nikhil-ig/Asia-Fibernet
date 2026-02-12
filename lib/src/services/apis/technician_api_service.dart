@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:asia_fibernet/src/services/sharedpref.dart';
 import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_model.dart';
 import 'package:flutter/material.dart' show debugPrint;
@@ -39,6 +40,10 @@ class TechnicianAPI extends BaseApiService {
       "fetch_modem_instlationCusts_tech.php";
   static const String _fetchModemInstallationCustomersDetails =
       "fetch_instlationCust_details_tech.php";
+
+  // Ticket-close OTP endpoints
+  static const String _generateOtpTktClose = "generate_otp_tkt_close.php";
+  static const String _verifyOtpTktClose = "verify_otp_tkt_close.php";
 
   static const String _fetchCustomerSingle = "fetch_customer_single_tech.php";
   static const String _complaintClose = "complaint_close_by_tech.php";
@@ -1062,6 +1067,61 @@ class TechnicianAPI extends BaseApiService {
   // ————————————————————————
   // 🔹 Raise/Re-raise Complaint
   // ————————————————————————
+
+  /// Generate OTP for ticket close (technician flow)
+  /// Request body: { ticket_no: "", action: "send", gateway: "text" }
+  Future<Map<String, dynamic>?> generateOtpForTicketClose({
+    required String ticketNo,
+    required String mobileNo,
+    String action = 'send',
+    String gateway = 'text',
+    bool? resend = false,
+  }) async {
+    final body = {
+      'mobile': mobileNo,
+      'ticket_no': ticketNo,
+      'action': action,
+      'gateway': gateway,
+    };
+    try {
+      final res = await _apiClient.post(
+        _generateOtpTktClose,
+        body: body,
+        // ignoreToken: true,
+      );
+      return _apiClient.handleResponse(res, (json) => json);
+    } catch (e) {
+      developer.log(
+        'Error in generateOtpForTicketClose: $e',
+        name: 'ApiServices.generateOtpForTicketClose',
+      );
+      return null;
+    }
+  }
+
+  /// Verify OTP for ticket close (technician flow)
+  /// Request body: { otp: "", mobile: "" }
+  Future<Map<String, dynamic>?> verifyOtpForTicketClose({
+    required String ticketNo,
+    required String otp,
+    required String mobile,
+  }) async {
+    final body = {'ticket_no': ticketNo, 'otp': otp, 'mobile': mobile};
+    try {
+      final res = await _apiClient.post(
+        _verifyOtpTktClose,
+        body: body,
+        ignoreToken: true,
+      );
+      return _apiClient.handleResponse(res, (json) => json);
+    } catch (e) {
+      developer.log(
+        'Error in verifyOtpForTicketClose: $e',
+        name: 'ApiServices.verifyOtpForTicketClose',
+      );
+      return null;
+    }
+  }
 
   /// 🚨 Re-raise a resolved complaint/ticket
   /// API Endpoint: {{base_url}}/af/api/rerise_complain.php

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../services/apis/base_api_service.dart';
 import 'package:circular_countdown_timer/circular_countdown_timer.dart';
 import 'call_controller.dart';
 
@@ -19,10 +20,10 @@ class CallScreen extends StatelessWidget {
       onWillPop: () async {
         // Prevent back button during active call
         if (_callController.callStatus.value == CallStatus.connected) {
-          Get.snackbar(
+          BaseApiService().showSnackbar(
             'Active Call',
             'Please end the call first',
-            backgroundColor: Colors.orange,
+            isError: false,
           );
           return false;
         }

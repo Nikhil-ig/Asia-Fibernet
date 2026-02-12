@@ -5,6 +5,7 @@ import 'dart:io';
 // import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer' as developer;
 // Models
@@ -39,6 +40,10 @@ class ApiServices {
   static const String _verifyMobile = "verify_mobile.php";
   static const String _generateOTP = "generate_otp.php";
   static const String _verifyOTP = "verify_otp.php";
+  // Ticket-close OTP endpoints
+  static const String _generateOtpTktClose = "generate_otp_tkt_close.php";
+  static const String _verifyOtpTktClose = "verify_otp_tkt_close.php";
+
   static const String _registerCustomer = "register_customer.php";
   static const String _getCustomerDetails = "get_customer_details.php";
   static const String _viewComplaint = "view_complaint.php";
@@ -72,6 +77,10 @@ class ApiServices {
   static const String _deleteCustomerAccount = "delete_customer_account.php";
   static const String _fetchCustomerTicketDashboardToday =
       "fetch_customer_ticket_dashboard_today.php";
+  static const String _disconnectionStatus = "disconnection_status.php";
+
+  // Call Technician
+  static const String _callTechnician = "call_technician.php";
 
   // ————————————————————————
   // 🔹 Customer APIs
@@ -172,6 +181,58 @@ class ApiServices {
       return response;
     } catch (e) {
       developer.log('Error in verifyOTP: $e', name: 'ApiServices.verifyOTP');
+      return null;
+    }
+  }
+
+  /// Generate OTP for ticket close (technician flow)
+  /// Request body: { ticket_no: "", action: "send", gateway: "text" }
+  Future<Map<String, dynamic>?> generateOtpForTicketClose(
+    String ticketNo, {
+    String action = 'send',
+    String gateway = 'text',
+  }) async {
+    final body = {'ticket_no': ticketNo, 'action': action, 'gateway': gateway};
+    try {
+      final res = await _apiClient.post(
+        _generateOtpTktClose,
+        body: body,
+        ignoreToken: true,
+      );
+      return _apiClient.handleResponse(res, (json) => json);
+    } catch (e) {
+      developer.log(
+        'Error in generateOtpForTicketClose: $e',
+        name: 'ApiServices.generateOtpForTicketClose',
+      );
+      return null;
+    }
+  }
+
+  /// Verify OTP for ticket close (technician flow)
+  /// Request body: { otp: "", mobile: "" }
+  Future<Map<String, dynamic>?> verifyOtpForTicketClose({
+    required String otp,
+    required String mobile,
+    String? ticketNo,
+  }) async {
+    final body = {
+      'otp': otp,
+      'mobile': mobile,
+      if (ticketNo != null) 'ticket_no': ticketNo,
+    };
+    try {
+      final res = await _apiClient.post(
+        _verifyOtpTktClose,
+        body: body,
+        ignoreToken: true,
+      );
+      return _apiClient.handleResponse(res, (json) => json);
+    } catch (e) {
+      developer.log(
+        'Error in verifyOtpForTicketClose: $e',
+        name: 'ApiServices.verifyOtpForTicketClose',
+      );
       return null;
     }
   }
@@ -1018,10 +1079,7 @@ class ApiServices {
         title: Text('Logout'),
         content: Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(Get.context!).pop(),
-            child: Text('Cancel'),
-          ),
+          TextButton(onPressed: () => safePop(), child: Text('Cancel')),
           ElevatedButton(
             onPressed: handleLogout,
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
@@ -1079,6 +1137,92 @@ class ApiServices {
       return Get.find<T>();
     } else {
       return Get.put<T>(creator());
+    }
+  }
+
+  // ————————————————————————
+  // 🔹 Call Technician
+  // ————————————————————————
+
+  /// Call technician API - initiates a call to the technician
+  /// Request: {tech_id: "", mobile_number: ""}
+  Future<Map<String, dynamic>?> callTechnician({
+    required String techId,
+    required String mobileNumber,
+  }) async {
+    try {
+      debugPrint('📞 Calling technician...');
+      debugPrint('Tech ID: $techId, Mobile: $mobileNumber');
+      final token = AppSharedPref.instance.getToken();
+      final baseUrl = BaseApiService(BaseApiService.api).baseUrl;
+
+      final body = {'tech_id': techId, 'mobile_number': mobileNumber};
+      final Uri uri = Uri.parse('$baseUrl$_callTechnician');
+
+      final res = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          if (token != null && token != 'Guest')
+            'Authorization': 'Bearer $token',
+        },
+        body: body,
+      );
+
+      // Auto-close after 5 seconds
+      await Future.delayed(const Duration(seconds: 5));
+      if (Get.isDialogOpen ?? false) {
+        safePop();
+      }
+
+      if (res.statusCode == 200) {
+        final jsonResponse = jsonDecode(res.body);
+        debugPrint('✅ Call technician response: $jsonResponse');
+        return jsonResponse;
+      } else {
+        debugPrint('❌ Error calling technician: ${res.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Exception calling technician: $e');
+      return null;
+    }
+  }
+
+  // ————————————————————————
+  // 🔹 Disconnection Status
+  // ————————————————————————
+
+  /// Fetch disconnection status for customer
+  /// Returns: {
+  ///   "status": "completed",
+  ///   "message": "Disconnection request",
+  ///   "disconnection_id": 140,
+  ///   "ticket_no": "AFN-DI-00140",
+  ///   "service_no": "080-484375375",
+  ///   "account_id": "74745865468"
+  /// }
+  /// Or error: {
+  ///   "status": "error",
+  ///   "message": "No record found to update"
+  /// }
+  Future<Map<String, dynamic>?> getDisconnectionStatus() async {
+    try {
+      debugPrint('📋 Fetching disconnection status...');
+
+      final res = await _apiClient.post(_disconnectionStatus);
+
+      if (res.statusCode == 200) {
+        final jsonResponse = jsonDecode(res.body);
+        debugPrint('✅ Disconnection status response: $jsonResponse');
+        return jsonResponse;
+      } else {
+        debugPrint('❌ Error fetching disconnection status: ${res.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Exception fetching disconnection status: $e');
+      return null;
     }
   }
 }

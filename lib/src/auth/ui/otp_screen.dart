@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import '../../services/apis/base_api_service.dart';
 import 'package:asia_fibernet/src/theme/colors.dart';
 import 'package:asia_fibernet/src/theme/theme.dart';
 import 'package:iconsax/iconsax.dart';
@@ -636,13 +637,10 @@ class OTPScreen extends GetView<OTPController> {
                     )) {
                       controller.verifyAndLogin();
                     } else {
-                      Get.snackbar(
+                      BaseApiService().showSnackbar(
                         "Incomplete OTP",
                         "Please enter all 6 digits",
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: Colors.red,
-                        colorText: Colors.white,
-                        duration: const Duration(seconds: 2),
+                        isError: true,
                       );
                     }
                   },

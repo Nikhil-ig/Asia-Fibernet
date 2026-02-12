@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:asia_fibernet/src/services/apis/base_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import 'dart:developer' as developer;
 
 import '../theme/colors.dart';
@@ -207,13 +208,8 @@ class ComplaintController extends GetxController {
         );
         // ✅ FIXED: Use GetX navigation with a small delay to ensure overlay is ready
         await Future.delayed(const Duration(milliseconds: 500));
-        try {
-          Navigator.of(Get.context!).pop();
-        } catch (e) {
-          // Fallback: If context is not available, use GetX
-          debugPrint("Navigator pop failed, using GetX: $e");
-          Get.back();
-        }
+        // Use safePop which handles overlay/context fallbacks and GetX
+        safePop();
       }
     } finally {
       // ✅ RESET LOADING STATE

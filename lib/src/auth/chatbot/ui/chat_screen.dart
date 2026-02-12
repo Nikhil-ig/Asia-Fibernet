@@ -252,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
     //   'Callback Request',
     //   'User requested a callback.',
     // );
-    makePhoneCall();
+    makeSupportCall();
   }
 
   Future<void> _submitGenericRequest(

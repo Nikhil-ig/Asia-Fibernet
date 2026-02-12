@@ -6,15 +6,84 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:shimmer/shimmer.dart';
+import 'dart:async';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/apis/technician_api_service.dart';
+import '../../../services/apis/api_services.dart';
 import '../../../services/sharedpref.dart';
 import '../../../services/background_services/location_tracking_background_service.dart';
 import '../../../theme/colors.dart';
 import '../../../theme/theme.dart';
+import '../../../utils/safe_navigation.dart';
 import '../../core/models/tickets_model.dart';
 import '../../core/models/ticket_closure_model.dart';
 import 'customer_detail_screen.dart';
+
+/// Safely dismiss an overlay (bottom sheet / dialog / snackbar) if present.
+/// Prefer closing known overlays via Get to avoid ancestor lookups on
+/// potentially deactivated contexts. If nothing known is open, optionally
+/// fall back to popping a Navigator route when a valid context is provided.
+void _dismissOverlay({BuildContext? ctx}) {
+  // Be extra defensive: accessing some GetX getters may throw if
+  // internals (like the snackbar controller) haven't been initialized.
+  // Read the flags inside try/catch and only call the corresponding
+  // close methods if it's safe. Wrap each close call in a try/catch
+  // to avoid rethrowing asynchronous or late init errors.
+  bool isBottomSheetOpen = false;
+  bool isDialogOpen = false;
+  bool isSnackbarOpen = false;
+
+  try {
+    isBottomSheetOpen = Get.isBottomSheetOpen == true;
+  } catch (_) {}
+  try {
+    isDialogOpen = Get.isDialogOpen == true;
+  } catch (_) {}
+  try {
+    isSnackbarOpen = Get.isSnackbarOpen == true;
+  } catch (_) {}
+
+  if (isBottomSheetOpen) {
+    // Prefer using the provided context to pop. If none is provided,
+    // it's safer to do nothing than to call Get.back() which may touch
+    // uninitialized internals asynchronously.
+    if (ctx != null) {
+      try {
+        if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (isDialogOpen) {
+    if (ctx != null) {
+      try {
+        if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (isSnackbarOpen) {
+    if (ctx != null) {
+      try {
+        ScaffoldMessenger.of(ctx).hideCurrentSnackBar();
+      } catch (_) {}
+    } else {
+      // As a last resort try Get's close method inside try/catch.
+      try {
+        Get.closeCurrentSnackbar();
+      } catch (_) {}
+    }
+    return;
+  }
+
+  if (ctx != null) {
+    try {
+      if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+    } catch (_) {}
+  }
+}
 
 class AllTicketsController extends GetxController {
   final apiServices = TechnicianAPI();
@@ -44,11 +113,22 @@ class AllTicketsController extends GetxController {
   // ✅ API service for ticket updates
   late TechnicianAPI technicianAPI;
 
+  // ✅ OTP Timer and Resend State
+  Timer? _otpTimer;
+  final RxInt otpTimeRemaining = 60.obs;
+  final RxBool isOtpTimerActive = true.obs;
+
   @override
   void onInit() {
     super.onInit();
     technicianAPI = TechnicianAPI();
     fetchTickets();
+  }
+
+  @override
+  void onClose() {
+    _otpTimer?.cancel();
+    super.onClose();
   }
 
   void clearAllFilters() {
@@ -154,7 +234,7 @@ class AllTicketsController extends GetxController {
                 ),
                 onTap: () async {
                   final picked = await showDatePicker(
-                    context: Get.context!,
+                    context: context,
                     initialDate: selectedStartDate.value,
                     firstDate: DateTime(2000),
                     lastDate: DateTime.now(),
@@ -170,7 +250,7 @@ class AllTicketsController extends GetxController {
                 ),
                 onTap: () async {
                   final picked = await showDatePicker(
-                    context: Get.context!,
+                    context: context,
                     initialDate: selectedEndDate.value,
                     firstDate: selectedStartDate.value,
                     lastDate: DateTime.now(),
@@ -181,11 +261,14 @@ class AllTicketsController extends GetxController {
             ],
           ),
           actions: [
-            TextButton(onPressed: Get.back, child: Text("Cancel")),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text("Cancel"),
+            ),
             ElevatedButton(
               onPressed: () {
                 isDateFilterActive.value = true;
-                Navigator.of(Get.context!).pop();
+                Navigator.of(context).pop();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -222,7 +305,9 @@ class AllTicketsController extends GetxController {
       ),
     );
     final fullTicket = await apiServices.fetchTicketByTicketNo(ticket.ticketNo);
-    if (Get.isBottomSheetOpen!) Navigator.pop(context);
+    if (Get.isBottomSheetOpen == true) {
+      _dismissOverlay(ctx: context);
+    }
     if (fullTicket != null) {
       Get.bottomSheet(
         _buildTicketDetailsBottomSheet(
@@ -254,7 +339,7 @@ class AllTicketsController extends GetxController {
     return Container(
       constraints: BoxConstraints(maxHeight: Get.size.height * .85),
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(Get.context!).viewInsets.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -289,7 +374,20 @@ class AllTicketsController extends GetxController {
                       Iconsax.close_circle,
                       color: AppColors.textColorSecondary,
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      // Use a stable overlay/context if available — the
+                      // `context` parameter passed into this builder may be
+                      // the parent page context rather than the bottom-sheet's
+                      // active context. Prefer Get.overlayContext and fall
+                      // back to the provided context. Attempt a safe pop and
+                      // use the defensive helper if that fails.
+                      final safeCtx = Get.overlayContext ?? context;
+                      try {
+                        Navigator.of(safeCtx).pop();
+                      } catch (_) {
+                        _dismissOverlay(ctx: safeCtx);
+                      }
+                    },
                   ),
                 ],
               ),
@@ -468,61 +566,72 @@ class AllTicketsController extends GetxController {
                         ),
                       ),
                       SizedBox(height: 20),
-                      if (ticket.closedAt == null)
-                        if (assignTo == AppSharedPref.instance.getUserID())
-                          Obx(
-                            () => SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed:
-                                    isLoading.value
-                                        ? null
-                                        : () => _sendOtpAndClose(
+                      // if (ticket.closedAt == null)
+                      if (assignTo == AppSharedPref.instance.getUserID())
+                        Obx(
+                          () => SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed:
+                                  isLoading.value
+                                      ? null
+                                      : () {
+                                        print("Back");
+
+                                        _sendOtpAndClose(
                                           context,
                                           ticket,
                                           remarkCtrl.text.trim(),
-                                        ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.success,
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 2,
+                                        );
+                                        final safeCtx =
+                                            Get.overlayContext ?? context;
+                                        try {
+                                          Navigator.of(safeCtx).pop();
+                                        } catch (_) {
+                                          _dismissOverlay(ctx: safeCtx);
+                                        }
+                                      },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.success,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                child:
-                                    isLoading.value
-                                        ? SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                        : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Iconsax.tick_circle,
-                                              size: 20,
-                                              color: Colors.white,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              "Resolved",
-                                              style: AppText.button.copyWith(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                elevation: 2,
                               ),
+                              child:
+                                  isLoading.value
+                                      ? SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Iconsax.tick_circle,
+                                            size: 20,
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            "Resolved",
+                                            style: AppText.button.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                             ),
                           ),
+                        ),
                     ] else ...[
                       if (ticket.closedRemark != null)
                         _section("Resolution Note", ticket.closedRemark!),
@@ -684,18 +793,124 @@ class AllTicketsController extends GetxController {
       print('⚠️ Failed to start tracking: $e');
     }
 
-    Navigator.pop(context);
-    _showOtpVerificationSheet(context, ticket);
+    // If the ticket was created more than 4 hours ago, skip OTP verification
+    // and directly attempt to close the ticket using the close API.
+    try {
+      DateTime createdAt;
+      try {
+        createdAt = DateTime.parse(ticket.createdAt);
+      } catch (e) {
+        // If parsing fails, assume it's recent (so we fall back to OTP flow).
+        createdAt = DateTime.now();
+      }
+
+      final age = DateTime.now().difference(createdAt);
+      // if (age >= const Duration(hours: 4)) {
+      if (true) {
+        // Direct close path
+        isLoading.value = true;
+        try {
+          final success = await apiServices.closeComplaint(
+            ticketNo: ticket.ticketNo,
+            closedRemark: remark,
+          );
+          isLoading.value = false;
+
+          if (success == true) {
+            // Dismiss details sheet/dialog and refresh list
+            _dismissOverlay(ctx: context);
+            BaseApiService().showSnackbar(
+              "Success",
+              "Ticket closed successfully.",
+            );
+            await fetchTickets();
+            _dismissOverlay(ctx: context);
+            return;
+          } else {
+            BaseApiService().showSnackbar(
+              "Error",
+              "Failed to close ticket. Please try again.",
+              isError: true,
+            );
+            return;
+          }
+        } catch (e) {
+          isLoading.value = false;
+          BaseApiService().showSnackbar(
+            "Error",
+            "Failed to close ticket. Please try again. ($e)",
+            isError: true,
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      // If anything goes wrong with the age check, log and continue to OTP flow
+      debugPrint('⚠️ _sendOtpAndClose age-check error: $e');
+    }
+
+    // Send OTP for ticket close before showing verification sheet
+    try {
+      // final api = ApiServices();
+      final resp = await apiServices.generateOtpForTicketClose(
+        mobileNo: ticket.customerMobileNo!,
+        ticketNo: ticket.ticketNo,
+        gateway: 'text',
+      );
+
+      if (resp == null || resp['status'] != 'success') {
+        BaseApiService().showSnackbar(
+          "Error",
+          resp != null && resp['message'] != null
+              ? resp['message']
+              : "Failed to send OTP. Please try again.",
+          isError: true,
+        );
+        return;
+      }
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to send OTP. Please try again.",
+        isError: true,
+      );
+      return;
+    }
+
+    // Capture a stable overlay/context before popping the current dialog so
+    // we don't try to lookup an ancestor from a deactivated context.
+    // Prefer the Navigator overlay context if available; avoid using
+    // Get.context here to prevent accessing Get internals when not ready.
+    final safeOverlayContext =
+        Navigator.of(context).overlay?.context ?? context;
+
+    try {
+      Navigator.of(safeOverlayContext).pop();
+    } catch (_) {
+      _dismissOverlay(ctx: safeOverlayContext);
+    }
+
+    // Schedule after this frame so the element tree is stable.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showOtpVerificationSheet(safeOverlayContext, ticket);
+    });
   }
 
   void _showOtpVerificationSheet(context, TicketModel ticket) {
     final otpCtrl = TextEditingController();
     final isLoading = false.obs;
+
+    // Reset timer state
+    otpTimeRemaining.value = 60;
+    isOtpTimerActive.value = true;
+    _otpTimer?.cancel();
+    _startOtpTimer();
+
     Get.bottomSheet(
       SafeArea(
         child: Container(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(Get.context!).viewInsets.bottom,
+            bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -731,7 +946,10 @@ class AllTicketsController extends GetxController {
                           Iconsax.close_circle,
                           color: AppColors.textColorSecondary,
                         ),
-                        onPressed: () => Navigator.of(Get.context!).pop(),
+                        onPressed: () {
+                          _otpTimer?.cancel();
+                          Navigator.of(context).pop();
+                        },
                       ),
                     ],
                   ),
@@ -829,6 +1047,7 @@ class AllTicketsController extends GetxController {
                                 isLoading.value
                                     ? null
                                     : () async {
+                                      // If OTP is required for this ticket, verify it first
                                       if (ticket.requiresOtpVerification()) {
                                         final otp = otpCtrl.text;
                                         if (otp.length != 6) {
@@ -839,7 +1058,58 @@ class AllTicketsController extends GetxController {
                                           );
                                           return;
                                         }
+
+                                        final mobile =
+                                            AppSharedPref.instance
+                                                .getMobileNumber();
+                                        if (mobile == null) {
+                                          BaseApiService().showSnackbar(
+                                            "Error",
+                                            "Mobile number not found",
+                                            isError: true,
+                                          );
+                                          return;
+                                        }
+
+                                        try {
+                                          final verifyResp = await apiServices
+                                              .verifyOtpForTicketClose(
+                                                ticketNo: ticket.ticketNo,
+                                                otp: otp,
+                                                mobile: mobile,
+                                              );
+
+                                          if (verifyResp == null ||
+                                              verifyResp['status'] !=
+                                                  'success') {
+                                            final errorMsg =
+                                                verifyResp != null &&
+                                                        verifyResp['message'] !=
+                                                            null
+                                                    ? verifyResp['message']
+                                                    : "OTP verification failed. Please try again.";
+
+                                            // Clear OTP field on error
+                                            otpCtrl.clear();
+
+                                            BaseApiService().showSnackbar(
+                                              "Invalid OTP",
+                                              errorMsg,
+                                              isError: true,
+                                            );
+                                            return;
+                                          }
+                                        } catch (e) {
+                                          otpCtrl.clear();
+                                          BaseApiService().showSnackbar(
+                                            "Error",
+                                            "OTP verification failed. Please try again.",
+                                            isError: true,
+                                          );
+                                          return;
+                                        }
                                       }
+
                                       isLoading.value = true;
                                       try {
                                         final success = await apiServices
@@ -860,11 +1130,12 @@ class AllTicketsController extends GetxController {
                                             );
                                           }
 
+                                          _otpTimer?.cancel();
                                           BaseApiService().showSnackbar(
                                             "Success",
                                             "Ticket closed successfully!",
                                           );
-                                          Navigator.pop(context);
+                                          _dismissOverlay(ctx: context);
                                           fetchTickets();
                                         }
                                       } catch (e) {
@@ -874,7 +1145,7 @@ class AllTicketsController extends GetxController {
                                           isError: true,
                                         );
                                       } finally {
-                                        Navigator.pop(context);
+                                        _dismissOverlay(ctx: context);
                                         isLoading.value = false;
                                       }
                                     },
@@ -917,21 +1188,38 @@ class AllTicketsController extends GetxController {
                       ),
                       SizedBox(height: 16),
                       if (ticket.requiresOtpVerification())
-                        Center(
-                          child: TextButton(
-                            onPressed: () {
-                              BaseApiService().showSnackbar(
-                                "OTP Sent",
-                                "New OTP has been sent to customer",
-                              );
-                            },
-                            child: Text(
-                              "Resend OTP",
-                              style: AppText.bodyMedium.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w500,
+                        Obx(
+                          () => Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Didn't receive OTP? ",
+                                style: AppText.bodyMedium.copyWith(
+                                  color: AppColors.textColorSecondary,
+                                ),
                               ),
-                            ),
+                              TextButton(
+                                onPressed:
+                                    isOtpTimerActive.value
+                                        ? null
+                                        : () => _showResendOtpOptions(
+                                          context,
+                                          ticket,
+                                        ),
+                                child: Text(
+                                  isOtpTimerActive.value
+                                      ? "Resend in ${otpTimeRemaining.value}s"
+                                      : "Resend OTP",
+                                  style: AppText.bodyMedium.copyWith(
+                                    color:
+                                        isOtpTimerActive.value
+                                            ? AppColors.textColorSecondary
+                                            : AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       SizedBox(height: 8),
@@ -963,6 +1251,131 @@ class AllTicketsController extends GetxController {
       isScrollControlled: true,
       backgroundColor: Colors.white,
     );
+  }
+
+  /// Start OTP countdown timer (60 seconds)
+  void _startOtpTimer() {
+    _otpTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (otpTimeRemaining.value > 0) {
+        otpTimeRemaining.value--;
+      } else {
+        isOtpTimerActive.value = false;
+        timer.cancel();
+      }
+    });
+  }
+
+  /// Show resend OTP modal with SMS/WhatsApp options
+  void _showResendOtpOptions(BuildContext context, TicketModel ticket) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          "Resend OTP",
+          style: AppText.headingMedium.copyWith(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          "Choose how you want to receive the OTP",
+          style: AppText.bodyMedium.copyWith(
+            color: AppColors.textColorSecondary,
+          ),
+        ),
+        actions: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    _dismissOverlay(ctx: context);
+                    _resendOtp(ticket, 'text');
+                  },
+                  icon: Icon(Iconsax.sms),
+                  label: Text("Send via SMS"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    _dismissOverlay(ctx: context);
+                    _resendOtp(ticket, 'whatsapp');
+                  },
+                  icon: Icon(Iconsax.message),
+                  label: Text("Send via WhatsApp"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    _dismissOverlay(ctx: context);
+                  },
+                  child: Text("Cancel"),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      barrierDismissible: true,
+    );
+  }
+
+  /// Resend OTP with selected gateway
+  Future<void> _resendOtp(TicketModel ticket, String gateway) async {
+    try {
+      final resp = await apiServices.generateOtpForTicketClose(
+        ticketNo: ticket.ticketNo,
+        gateway: gateway,
+        mobileNo: ticket.customerMobileNo!,
+        resend: true,
+      );
+
+      if (resp != null && resp['status'] == 'success') {
+        // Reset timer
+        otpTimeRemaining.value = 60;
+        isOtpTimerActive.value = true;
+        _otpTimer?.cancel();
+        _startOtpTimer();
+
+        final gatewayName = gateway == 'whatsapp' ? 'WhatsApp' : 'SMS';
+        BaseApiService().showSnackbar("Success", "OTP resent via $gatewayName");
+      } else {
+        BaseApiService().showSnackbar(
+          "Error",
+          resp != null && resp['message'] != null
+              ? resp['message']
+              : "Failed to resend OTP. Please try again.",
+          isError: true,
+        );
+      }
+    } catch (e) {
+      BaseApiService().showSnackbar(
+        "Error",
+        "Failed to resend OTP. Please try again.",
+        isError: true,
+      );
+    }
   }
 
   Widget _buildSkeletonLoader() {
@@ -1169,12 +1582,28 @@ class AllTicketsController extends GetxController {
     final isLoading = true.obs;
     final callStatus = 'sending'.obs; // sending, success, error
     final errorMessage = ''.obs;
+    bool _didStart = false;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black.withOpacity(0.6),
-      builder: (context) {
+      builder: (dialogContext) {
+        // Ensure the call request is sent once after the dialog is built.
+        if (!_didStart) {
+          _didStart = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _sendCallRequest(
+              apiServices,
+              ticket,
+              callStatus,
+              errorMessage,
+              isLoading,
+              dialogCtx: dialogContext,
+            );
+          });
+        }
+
         return Obx(() {
           return Dialog(
             shape: RoundedRectangleBorder(
@@ -1401,7 +1830,9 @@ class AllTicketsController extends GetxController {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              _dismissOverlay(ctx: context);
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey.shade100,
                               foregroundColor: AppColors.textColorPrimary,
@@ -1432,6 +1863,7 @@ class AllTicketsController extends GetxController {
                                 callStatus,
                                 errorMessage,
                                 isLoading,
+                                dialogCtx: context,
                               );
                             },
                             style: ElevatedButton.styleFrom(
@@ -1455,7 +1887,9 @@ class AllTicketsController extends GetxController {
                     )
                   else if (callStatus.value == 'success')
                     ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        _dismissOverlay(ctx: context);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green.shade500,
                         foregroundColor: Colors.white,
@@ -1487,8 +1921,8 @@ class AllTicketsController extends GetxController {
       },
     );
 
-    // Send call request immediately
-    _sendCallRequest(apiServices, ticket, callStatus, errorMessage, isLoading);
+    // The request is started from inside the dialog builder using the
+    // dialog context to ensure safe pops; do not start it here.
   }
 
   Future<void> _sendCallRequest(
@@ -1496,8 +1930,9 @@ class AllTicketsController extends GetxController {
     TicketModel ticket,
     RxString callStatus,
     RxString errorMessage,
-    RxBool isLoading,
-  ) async {
+    RxBool isLoading, {
+    BuildContext? dialogCtx,
+  }) async {
     try {
       final callResult = await apiServices.callCustomer(
         mobileNo: ticket.customerMobileNo ?? '',
@@ -1509,8 +1944,11 @@ class AllTicketsController extends GetxController {
 
         // Auto-close after 5 seconds
         await Future.delayed(const Duration(seconds: 5));
-        if (Get.isDialogOpen ?? false) {
-          Navigator.of(Get.context!).pop();
+        // Prefer using the provided dialog context to close the dialog safely.
+        if (dialogCtx != null) {
+          try {
+            if (Navigator.of(dialogCtx).canPop()) Navigator.of(dialogCtx).pop();
+          } catch (_) {}
         }
       } else {
         debugPrint('❌ Call request failed: ${callResult?['message']}');
@@ -2137,7 +2575,7 @@ class AllTicketsScreen extends StatelessWidget {
                               ? Icon(Icons.check, color: AppColors.success)
                               : null,
                       onTap: () {
-                        Navigator.pop(context);
+                        _dismissOverlay(ctx: context);
                         if (filterName == 'My Tickets') {
                           controller.isMyTicketsActive.toggle();
                         } else if (filterName == 'All') {
@@ -2187,7 +2625,7 @@ class AllTicketsScreen extends StatelessWidget {
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: () {
-                              Navigator.pop(context);
+                              _dismissOverlay(ctx: context);
                               controller.isDateFilterActive.value = false;
                             },
                             child: Row(
@@ -2216,11 +2654,14 @@ class AllTicketsScreen extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(onPressed: Get.back, child: Text("Cancel")),
+            TextButton(
+              onPressed: () => _dismissOverlay(ctx: context),
+              child: Text("Cancel"),
+            ),
             ElevatedButton(
               onPressed: () {
                 controller.fetchTickets();
-                Navigator.pop(context);
+                _dismissOverlay(ctx: context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -3115,7 +3556,11 @@ class AllTicketsScreen extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        try {
+                          Navigator.of(context).pop();
+                        } catch (_) {}
+                      },
                       style: IconButton.styleFrom(
                         backgroundColor: Colors.grey.shade100,
                         padding: EdgeInsets.all(8),
@@ -4332,7 +4777,9 @@ class AllTicketsScreen extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  _dismissOverlay(ctx: context);
+                },
                 child: Text(
                   'Cancel',
                   style: TextStyle(color: Colors.grey.shade600),
@@ -4474,13 +4921,13 @@ class AllTicketsScreen extends StatelessWidget {
           );
 
           // ✅ Close dialog and refresh tickets
-          Navigator.pop(context);
+          safePop(context);
           await Future.delayed(Duration(milliseconds: 300));
           await controller.fetchTickets();
 
           // ✅ Optional: Navigate to ticket details to show update
           if (context.mounted && controller.isSolved.value) {
-            Navigator.pop(context);
+            safePop(context);
           }
         } else {
           BaseApiService().showSnackbar(
@@ -4527,9 +4974,7 @@ class AllTicketsScreen extends StatelessWidget {
   ) {
     return Container(
       constraints: BoxConstraints(maxHeight: Get.size.height * .90),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(Get.context!).viewInsets.bottom,
-      ),
+      padding: EdgeInsets.only(bottom: safeViewInsetsBottom(context)),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4577,7 +5022,11 @@ class AllTicketsScreen extends StatelessWidget {
                       Iconsax.close_circle,
                       color: AppColors.textColorSecondary,
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      try {
+                        Navigator.of(context).pop();
+                      } catch (_) {}
+                    },
                   ),
                 ],
               ),
@@ -4860,7 +5309,11 @@ class AllTicketsScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              try {
+                                Navigator.of(context).pop();
+                              } catch (_) {}
+                            },
                             icon: Icon(Iconsax.close_circle),
                             label: Text('Close'),
                             style: OutlinedButton.styleFrom(

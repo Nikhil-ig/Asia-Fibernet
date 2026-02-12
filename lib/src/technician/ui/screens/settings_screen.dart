@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 
+import '../../../services/routes.dart';
 import '../../../theme/colors.dart';
 import '../../../theme/theme.dart';
 import 'technician_profile_screen.dart';
@@ -61,6 +62,13 @@ class SettingsScreen extends StatelessWidget {
                   icon: Iconsax.notification,
                   title: "Notifications",
                   onTap: () => Get.to(() => NotificationScreen()),
+                ),
+                _buildSettingsItem(
+                  icon: Iconsax.notification,
+                  title: "Notification Settings",
+                  onTap: () {
+                    Get.toNamed(AppRoutes.notificationSettings);
+                  },
                 ),
               ],
             ),

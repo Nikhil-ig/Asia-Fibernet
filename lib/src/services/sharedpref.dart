@@ -28,6 +28,7 @@ class AppSharedPref {
   static const String _trackingStatusKey = 'is_tracking_enabled';
   static const String _isVerifyCustomer = 'is_verify_customer';
   static const String _fcmToken = '_fcmToken';
+  static const String _userPrefLanguageKey = 'user_pref_language';
 
   // 🧩 Singleton instance
   static AppSharedPref? _instance;
@@ -411,6 +412,40 @@ class AppSharedPref {
         name: "AppSharedPref.clearAllUserData",
       );
       return false;
+    }
+  }
+
+  /// Sets the user's preferred notification language.
+  ///
+  /// Example:
+  /// ```dart
+  /// await AppSharedPref.instance.setLanguage('en'); // English
+  /// await AppSharedPref.instance.setLanguage('ka'); // Kannada
+  /// ```
+  Future<bool> setLanguage(String language) async {
+    _validatePrefs();
+    try {
+      return await _prefs!.setString(_userPrefLanguageKey, language);
+    } catch (e) {
+      developer.log("Error setting language: $e");
+      return false;
+    }
+  }
+
+  /// Gets the user's preferred notification language.
+  ///
+  /// Returns 'en' (English) as default if not set.
+  /// Example:
+  /// ```dart
+  /// String lang = AppSharedPref.instance.getLanguage();
+  /// ```
+  String getLanguage() {
+    _validatePrefs();
+    try {
+      return _prefs!.getString(_userPrefLanguageKey) ?? 'en';
+    } catch (e) {
+      developer.log("Error getting language: $e");
+      return 'en';
     }
   }
 

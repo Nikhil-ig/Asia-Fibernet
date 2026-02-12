@@ -69,8 +69,8 @@ class PremiumBsnlPlansController extends GetxController {
       return;
     }
 
-    final int? userId = await AppSharedPref.instance.getUserID();
-    final String? mobileStr = await AppSharedPref.instance.getMobileNumber();
+    final int? userId = AppSharedPref.instance.getUserID();
+    final String? mobileStr = AppSharedPref.instance.getMobileNumber();
 
     if (userId == null || mobileStr == null) {
       BaseApiService().showSnackbar(
@@ -875,9 +875,9 @@ class _PremiumBsnlPlansScreenState extends State<PremiumBsnlPlansScreen>
                   );
                 } finally {
                   // Always dismiss the loading dialog
-                  Navigator.of(
-                    Get.context!,
-                  ).pop(); // This will close the dialog shown by _showRequestSendingDialog
+                  // Navigator.of(
+                  //   Get.context!,
+                  // ).pop(); // This will close the dialog shown by _showRequestSendingDialog
                 }
               },
               style: ElevatedButton.styleFrom(

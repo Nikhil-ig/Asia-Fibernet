@@ -1324,7 +1324,7 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () {
-                        makePhoneCall();
+                        makePhoneCall(tech.id);
                       },
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
@@ -1627,6 +1627,9 @@ class _ComplaintsScreenState extends State<ComplaintsScreen> {
                   complaint.displayStatus != 'Open' ||
                   step['status'] == 'Open' ||
                   (step['status'] == 'Assigned' && isAssigned);
+              print(
+                "🔹 Step: ${step['label']}, Status: ${step['status']}, IsCompleted: $isCompleted, ComplaintStatus: ${complaint.displayStatus}",
+              );
 
               return Column(
                 mainAxisAlignment: MainAxisAlignment.start,

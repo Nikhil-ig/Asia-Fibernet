@@ -16,6 +16,7 @@ class TechnicianTaskCard extends StatefulWidget {
 
 class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
   bool _isExpanded = false;
+  bool _isCalling = false;
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -184,8 +185,9 @@ class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
   }) {
     final stepStatus = step['status'] ?? '—';
     final time = _formatDateTime(step['date_time']);
-    final technicianPhone = widget.ticket['technician_phone'];
+    final technicianId = widget.ticket['assign_to'];
     final isAssigned = stepStatus.toLowerCase() == 'assigned';
+    print('Technician ID for call: ${widget.ticket}');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -228,7 +230,15 @@ class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
                     // Call button for Assigned status
                     if (isAssigned)
                       GestureDetector(
-                        onTap: () => makePhoneCall(),
+                        onTap: () async {
+                          if (_isCalling) return;
+                          setState(() => _isCalling = true);
+                          try {
+                            await makePhoneCall(technicianId);
+                          } finally {
+                            if (mounted) setState(() => _isCalling = false);
+                          }
+                        },
                         child: Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: 12.w,
@@ -255,10 +265,22 @@ class _TechnicianTaskCardState extends State<TechnicianTaskCard> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.call, size: 16, color: Colors.white),
+                              if (_isCalling)
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Icon(Icons.call, size: 16, color: Colors.white),
                               SizedBox(width: 6.w),
                               Text(
-                                'Call',
+                                _isCalling ? 'Calling...' : 'Call',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 12.sp,

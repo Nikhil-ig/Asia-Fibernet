@@ -7,6 +7,7 @@ import 'package:asia_fibernet/src/services/sharedpref.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -1702,6 +1703,9 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
                                             categoryList,
                                           );
                                         }
+                                        setState(() {
+                                          selectedOption = 'resolved';
+                                        });
                                       },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor:
@@ -2890,7 +2894,7 @@ Future<void> _sendCallRequest(
       // Auto-close after 5 seconds
       await Future.delayed(const Duration(seconds: 5));
       if (Get.isDialogOpen ?? false) {
-        Navigator.of(Get.context!).pop();
+        safePop();
       }
     } else {
       debugPrint('❌ Call request failed: ${callResult?['message']}');

@@ -66,19 +66,19 @@ class SettingsController extends GetxController {
                     SizedBox(height: 15),
                     Row(
                       children: [
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Iconsax.close_circle,
-                            color: Colors.white,
-                            size: 24.sp,
-                          ),
-                        ),
-                        SizedBox(width: 12),
+                        // Container(
+                        //   padding: EdgeInsets.all(12),
+                        //   decoration: BoxDecoration(
+                        //     color: Colors.white.withOpacity(0.2),
+                        //     shape: BoxShape.circle,
+                        //   ),
+                        //   child: Icon(
+                        //     Iconsax.close_circle,
+                        //     color: Colors.white,
+                        //     size: 24.sp,
+                        //   ),
+                        // ),
+                        // SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

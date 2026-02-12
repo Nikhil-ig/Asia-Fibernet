@@ -1,6 +1,7 @@
 // lib/customer/widgets/delete_complaint_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import '../../../services/apis/api_services.dart';
 import '../../../services/apis/base_api_service.dart';
 import '../../../services/sharedpref.dart';
@@ -34,7 +35,7 @@ class DeleteComplaintDialog extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(Get.context!).pop();
+              safePop();
             },
             child: Text(
               "No",

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
+import '../services/apis/base_api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:phone_state/phone_state.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -55,12 +57,10 @@ class CallController extends GetxController {
         if (callStatus.value == CallStatus.connecting) {
           callStatus.value = CallStatus.connected;
           _startCallTimer();
-          Get.snackbar(
+          BaseApiService().showSnackbar(
             'Call Connected',
             'You are now connected with the customer',
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-            duration: Duration(seconds: 2),
+            isError: false,
           );
         }
         break;
@@ -84,11 +84,10 @@ class CallController extends GetxController {
     Map<String, dynamic>? customerData,
   }) async {
     if (callStatus.value != CallStatus.idle) {
-      Get.snackbar(
+      BaseApiService().showSnackbar(
         'Busy',
         'Already on another call',
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
+        isError: false,
       );
       return;
     }
@@ -123,12 +122,10 @@ class CallController extends GetxController {
       if (response.statusCode == 200) {
         if (jsonResponse['status'] == 'success' ||
             jsonResponse['success'] == true) {
-          Get.snackbar(
+          BaseApiService().showSnackbar(
             'Success',
             'Call initiated successfully',
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-            duration: Duration(seconds: 2),
+            isError: false,
           );
 
           Get.to(
@@ -145,11 +142,10 @@ class CallController extends GetxController {
       }
     } catch (e) {
       callStatus.value = CallStatus.idle;
-      Get.snackbar(
+      BaseApiService().showSnackbar(
         'Call Failed',
         'Failed to initiate call: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        isError: true,
       );
     } finally {
       isCalling.value = false;
@@ -165,12 +161,10 @@ class CallController extends GetxController {
       currentCall.value.endTime = DateTime.now();
       currentCall.value.duration = callTimer.value;
 
-      Get.snackbar(
+      BaseApiService().showSnackbar(
         'Call Ended',
         'Duration: ${callTimer.value}',
-        backgroundColor: Colors.blue,
-        colorText: Colors.white,
-        duration: Duration(seconds: 3),
+        isError: false,
       );
     }
 
@@ -179,10 +173,10 @@ class CallController extends GetxController {
 
     Future.delayed(Duration(seconds: 2), () {
       if (Get.isBottomSheetOpen == true) {
-        Navigator.of(Get.context!).pop();
+        safePop();
       }
       if (Get.currentRoute == '/call') {
-        Navigator.of(Get.context!).pop();
+        safePop();
       }
       callStatus.value = CallStatus.idle;
     });

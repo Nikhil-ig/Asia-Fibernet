@@ -65,6 +65,7 @@ class SettingsScreen extends StatelessWidget {
                   title: "Plans",
                   onTap: () => Get.toNamed(AppRoutes.bsnlPlans),
                 ),
+
                 // _buildSettingsItem(
                 //   icon: Iconsax.notification,
                 //   title: "Notifications",
@@ -86,6 +87,13 @@ class SettingsScreen extends StatelessWidget {
                       backgroundColor: Colors.transparent,
                       isScrollControlled: true,
                     );
+                  },
+                ),
+                _buildSettingsItem(
+                  icon: Iconsax.notification,
+                  title: "Notification Settings",
+                  onTap: () {
+                    Get.toNamed(AppRoutes.notificationSettings);
                   },
                 ),
               ],

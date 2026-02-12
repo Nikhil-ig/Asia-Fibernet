@@ -5,6 +5,7 @@ import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_mo
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:asia_fibernet/src/utils/safe_navigation.dart';
 import '../../../auth/core/model/customer_details_model.dart';
 import '../../../customer/core/models/ticket_category_model.dart';
 import '../../../services/apis/api_services.dart';
@@ -51,7 +52,7 @@ class CustomerDetailsController extends GetxController {
         "Customer ID is missing.",
         isError: true,
       );
-      Navigator.of(Get.context!).pop();
+      safePop();
     }
   }
 
@@ -135,7 +136,7 @@ class CustomerDetailsController extends GetxController {
       ticketImage.value = null;
 
       // Close the bottom sheet
-      Navigator.pop(Get.context!);
+      safePop();
     } catch (e) {
       BaseApiService().showSnackbar(
         "Error",
@@ -188,7 +189,7 @@ class CustomerDetailsController extends GetxController {
           "Success",
           "Customer details updated successfully",
         );
-        Navigator.of(Get.context!).pop();
+        safePop();
       } else {
         BaseApiService().showSnackbar(
           "Error",
@@ -807,23 +808,23 @@ class CustomerDetailsScreen extends StatelessWidget {
                   ],
                 ),
                 // ✅ Beautiful edit button
-                if (onEdit != null)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.edit_rounded,
-                        size: 20,
-                        color: AppColors.primary,
-                      ),
-                      onPressed: onEdit,
-                      padding: EdgeInsets.all(8),
-                      constraints: BoxConstraints(),
-                    ),
-                  ),
+                // if (onEdit != null)
+                //   Container(
+                //     decoration: BoxDecoration(
+                //       color: AppColors.primary.withOpacity(0.1),
+                //       shape: BoxShape.circle,
+                //     ),
+                //     child: IconButton(
+                //       icon: Icon(
+                //         Icons.edit_rounded,
+                //         size: 20,
+                //         color: AppColors.primary,
+                //       ),
+                //       onPressed: onEdit,
+                //       padding: EdgeInsets.all(8),
+                //       constraints: BoxConstraints(),
+                //     ),
+                //   ),
               ],
             ),
           ),
@@ -898,9 +899,7 @@ class CustomerDetailsScreen extends StatelessWidget {
       context: Get.context!,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(Get.context!).size.height * 0.75,
-      ),
+      constraints: BoxConstraints(maxHeight: Get.size.height * 0.75),
       builder:
           (context) => Container(
             decoration: BoxDecoration(
