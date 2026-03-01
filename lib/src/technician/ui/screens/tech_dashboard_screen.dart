@@ -25,6 +25,7 @@ import '../../../theme/theme.dart';
 import '../../core/models/tech_dashboard_model.dart';
 import '../../attendance/attendance_screen.dart';
 import '../../core/models/tickets_model.dart';
+import 'customer_detail_screen.dart';
 import 'notifications_screen.dart';
 import 'settings_screen.dart';
 
@@ -2458,8 +2459,10 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
     final status = widget.ticket['status'] ?? 'Unknown';
     final priority = widget.ticket['priority'] ?? 'Medium';
     // final customerId = widget.ticket['customer_id'] ?? 'N/A';
-    final customerId =
+    final customerIP =
         widget.ticket['OLT_IP'] ?? widget.ticket['customer_id'] ?? '';
+    final customerId = widget.ticket['customer_id'] ?? '';
+    final customerName = widget.ticket['customer_name'] ?? '';
 
     final datas = List<Map<String, dynamic>>.from(widget.ticket['datas'] ?? []);
     final latest = datas.isNotEmpty ? datas.last : {};
@@ -2514,7 +2517,7 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Customer : $customerId',
+                        'Customer : $customerIP',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -2571,22 +2574,22 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Customer: ${customerDetail?.contactName ?? 'Customer'}",
+                          "Customer: ${customerName ?? 'Customer'}",
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Address: ${customerDetail?.address ?? 'N/A'}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                          // maxLines: 2,
-                          overflow: TextOverflow.clip,
-                        ),
+                        // const SizedBox(height: 4),
+                        // Text(
+                        //   "Address: ${customerDetail?.address ?? 'N/A'}",
+                        //   style: const TextStyle(
+                        //     fontSize: 12,
+                        //     color: Colors.grey,
+                        //   ),
+                        //   // maxLines: 2,
+                        //   overflow: TextOverflow.clip,
+                        // ),
                       ],
                     ),
                   ),
@@ -2753,7 +2756,58 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
               spacing: 10,
               children: [
                 // Make Call Button
-                if ((status.toLowerCase() == 'assigned'))
+                if ((status.toLowerCase() == 'assigned')) ...[
+                  ElevatedButton(
+                    onPressed: () async {
+                      // Start background location tracking when calling customer
+                      // try {
+                      //   final ticketDate = DateFormat(
+                      //     'yyyy-MM-dd',
+                      //   ).format(DateTime.now());
+                      //   final bgService = LocationTrackingBackgroundService();
+                      //   await bgService.startTracking(
+                      //     ticketDate: ticketDate,
+                      //     intervalSeconds: 60,
+                      //   );
+                      // } catch (e) {
+                      //   print('⚠️ Failed to start tracking: $e');
+                      // }
+
+                      // 📞 Show beautiful call request popup
+                      if (customerId != null) {
+                        Get.to(
+                          () => const CustomerDetailsScreen(),
+                          arguments: {'customerId': customerId},
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 2,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.person, size: 18),
+                            const SizedBox(width: 8),
+                            const Text("View Detail"),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 10),
                   ElevatedButton(
                     onPressed: () async {
                       // Start background location tracking when calling customer
@@ -2808,7 +2862,7 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
                       ),
                     ),
                   ),
-                // Auto-advance button
+                ], // Auto-advance button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(

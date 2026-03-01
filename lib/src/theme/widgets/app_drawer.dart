@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../auth/ui/scaffold_screen.dart';
 import '../../auth/ui/widgets/account_switcher.dart';
+import '../../customer/core/controller/settings_controller.dart';
 // import '../../chatbot/ui/chat_screen.dart';
 import '../../customer/core/models/technician_model.dart';
 import '../../services/sharedpref.dart';
@@ -104,12 +105,12 @@ class AppDrawer extends StatelessWidget {
                           index: 0,
                           badgeCount: 0,
                         ),
-                        _DrawerItem(
-                          icon: Iconsax.document_text,
-                          label: 'Plans & Packages',
-                          index: 1,
-                          // isPro: true,
-                        ),
+                        // _DrawerItem(
+                        //   icon: Iconsax.document_text,
+                        //   label: 'Plans & Packages',
+                        //   index: 1,
+                        //   // isPro: true,
+                        // ),
                         // _DrawerItem(
                         //   icon: Iconsax.magicpen,
                         //   label: 'AI Assistant',
@@ -129,7 +130,6 @@ class AppDrawer extends StatelessWidget {
                           // badgeCount: 2,
                           onTap: () {
                             Navigator.pop(context);
-                            ;
                             scaffoldCtrl.updateIndex(3);
                             // Navigate to service requests
                           },
@@ -142,6 +142,34 @@ class AppDrawer extends StatelessWidget {
                             Navigator.pop(context);
                             ;
                             Get.toNamed('/profile');
+                          },
+                        ),
+                        _DrawerItem(
+                          icon: Iconsax.flash_1,
+                          label: 'Request Disconnection',
+                          index: -1,
+                          onTap: () {
+                            Navigator.pop(context);
+                            // Get settings controller and show disconnection sheet
+                            final settingsCtrl =
+                                Get.isRegistered<SettingsController>()
+                                    ? Get.find<SettingsController>()
+                                    : Get.put(SettingsController());
+                            settingsCtrl.showDisconnectionSheet();
+                          },
+                        ),
+                        _DrawerItem(
+                          icon: Iconsax.location,
+                          label: 'Relocation Request',
+                          index: -1,
+                          onTap: () {
+                            Navigator.pop(context);
+                            // Get settings controller and show relocation sheet
+                            final settingsCtrl =
+                                Get.isRegistered<SettingsController>()
+                                    ? Get.find<SettingsController>()
+                                    : Get.put(SettingsController());
+                            settingsCtrl.showRelocationSheet();
                           },
                         ),
                         _DrawerItem(
@@ -158,6 +186,14 @@ class AppDrawer extends StatelessWidget {
                             Navigator.pop(context);
                             ;
                             scaffoldCtrl.navigateToReferral();
+                          },
+                        ),
+                        _DrawerItem(
+                          icon: Iconsax.logout,
+                          label: "Logout",
+                          onTap: () {
+                            ApiServices().logOutDialog();
+                            // Get.offAllNamed('/login');
                           },
                         ),
                       ],
@@ -246,7 +282,7 @@ class AppDrawer extends StatelessWidget {
             ),
 
             // Footer Section
-            _DrawerFooter(),
+            // _DrawerFooter(),
           ],
         ),
       ),

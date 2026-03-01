@@ -2771,6 +2771,34 @@ class AllTicketsScreen extends StatelessWidget {
                   Container(
                     padding: EdgeInsets.all(6),
                     decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Iconsax.user,
+                      size: 16,
+                      color: AppColors.success,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      "Customer: ${ticket.customerName}",
+                      style: AppText.bodyMedium.copyWith(
+                        color: AppColors.textColorPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),

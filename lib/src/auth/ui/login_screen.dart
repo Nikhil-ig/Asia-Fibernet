@@ -101,9 +101,9 @@ class LoginScreen extends GetView<LoginController> {
                   formKey: _formKey, // Pass the local form key
                 ),
 
-                // SizedBox(height: 0.02.sh), // Responsive spacing
+                SizedBox(height: 0.02.sh), // Responsive spacing
                 // Sign Up Section (Reusable Widget)
-                // _SignUpSection(),
+                _SignUpSection(),
                 // SizedBox(height: 0.02.sh), // Responsive spacing
                 // Footer text
                 // Text(

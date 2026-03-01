@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:asia_fibernet/src/services/sharedpref.dart';
 import 'package:asia_fibernet/src/technician/core/models/find_customer_detail_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:asia_fibernet/src/utils/safe_navigation.dart';
@@ -1231,6 +1232,25 @@ class CustomerDetailsScreen extends StatelessWidget {
               ],
             ),
           ),
+          // ✅ Copy button (for address)
+          if (label == 'Address')
+            IconButton(
+              icon: Icon(
+                Icons.copy_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: value));
+                BaseApiService().showSnackbar(
+                  "Copied",
+                  "Address copied to clipboard",
+                );
+              },
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(),
+              tooltip: "Copy address",
+            ),
         ],
       ),
     );

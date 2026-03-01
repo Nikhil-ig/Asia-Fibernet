@@ -223,9 +223,155 @@ class ScaffoldScreen extends StatelessWidget {
           ],
         ),
         body: screens[currentIndex],
-        // Remove floating action button and bottom navigation bar
+        // ✅ Beautiful Bottom Navigation Bar
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16.r)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildNavBarItem(
+                  icon: Iconsax.home_2,
+                  label: 'Home',
+                  index: 0,
+                  currentIndex: currentIndex,
+                  onTap: () => scaffoldCtrl.updateIndex(0),
+                ),
+                _buildNavBarItem(
+                  icon: Iconsax.document_text,
+                  label: 'Plans',
+                  index: 1,
+                  currentIndex: currentIndex,
+                  onTap: () => scaffoldCtrl.updateIndex(1),
+                ),
+                _buildNavBarItem(
+                  icon: Iconsax.magicpen,
+                  label: 'AI Assistant',
+                  index: 2,
+                  currentIndex: currentIndex,
+                  onTap: () => scaffoldCtrl.updateIndex(2),
+                ),
+                _buildNavBarItem(
+                  icon: Iconsax.setting_2,
+                  label: 'Settings',
+                  index: 4,
+                  currentIndex: currentIndex,
+                  onTap: () => scaffoldCtrl.updateIndex(4),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     });
+  }
+
+  // ✅ Custom Navigation Bar Item Widget
+  Widget _buildNavBarItem({
+    required IconData icon,
+    required String label,
+    required int index,
+    required int currentIndex,
+    required VoidCallback onTap,
+  }) {
+    final isActive = currentIndex == index;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(10.r),
+            decoration: BoxDecoration(
+              color:
+                  isActive
+                      ? AppColors.primary.withOpacity(0.1)
+                      : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 20.sp,
+              color:
+                  isActive ? AppColors.primary : AppColors.textColorSecondary,
+            ),
+          ),
+          SizedBox(height: 3.h),
+          Text(
+            label,
+            style: AppText.labelSmall.copyWith(
+              color:
+                  isActive ? AppColors.primary : AppColors.textColorSecondary,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+              fontSize: 10.sp,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomNavBarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _BottomNavBarItem({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.all(10.r),
+            decoration: BoxDecoration(
+              color:
+                  isActive
+                      ? AppColors.primary.withOpacity(0.1)
+                      : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 24.sp,
+              color:
+                  isActive ? AppColors.primary : AppColors.textColorSecondary,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            label,
+            style: AppText.labelSmall.copyWith(
+              color:
+                  isActive ? AppColors.primary : AppColors.textColorSecondary,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+              fontSize: 10.sp,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
