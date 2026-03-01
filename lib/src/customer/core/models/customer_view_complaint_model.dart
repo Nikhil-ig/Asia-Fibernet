@@ -208,8 +208,12 @@ class ComplaintViewModel {
   }
 
   /// True if complaint is still open, assigned, or on hold
-  bool get isOpen =>
+  // bool get isOpen =>
+  //     ['open', 'assigned', 'on hold'].contains(status.trim().toLowerCase());
+  bool get isRaisedComplaints =>
       ['open', 'assigned', 'on hold'].contains(status.trim().toLowerCase());
+
+  bool get isOpen => ['open'].contains(status.trim().toLowerCase());
 
   /// True if complaint is resolved or closed
   bool get isResolved => [

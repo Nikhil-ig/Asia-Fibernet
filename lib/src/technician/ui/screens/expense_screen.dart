@@ -336,97 +336,100 @@ class ExpenseScreen extends StatelessWidget {
             ),
           ];
         },
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                AppColors.backgroundLight.withOpacity(0.1),
-                AppColors.backgroundLight,
+        body: RefreshIndicator(
+          onRefresh: () => controller.fetchExpenses(),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.backgroundLight.withOpacity(0.1),
+                  AppColors.backgroundLight,
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                // Stats Section with Glass Morphism
+                Padding(
+                  padding: EdgeInsets.all(16.sp),
+                  child: Obx(() => _buildStatsSection()),
+                ),
+
+                // Header with Filter Option
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.sp,
+                    vertical: 8.sp,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recent Expenses',
+                        style: AppText.headingMedium.copyWith(
+                          color: AppColors.textColorPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            '${controller.expenses.length} items',
+                            style: AppText.bodySmall.copyWith(
+                              color: AppColors.textColorSecondary,
+                            ),
+                          ),
+                          SizedBox(width: 8.w),
+                          Container(
+                            padding: EdgeInsets.all(6.sp),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8.r),
+                            ),
+                            child: Icon(
+                              Icons.filter_list_rounded,
+                              size: 18.sp,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Expenses List
+                Expanded(
+                  child: Obx(() {
+                    if (controller.isLoading.value) {
+                      return _buildLoadingState();
+                    }
+
+                    if (controller.errorMessage.value.isNotEmpty) {
+                      return _buildErrorWidget();
+                    }
+
+                    if (controller.expenses.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    return ListView.builder(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.sp,
+                        vertical: 8.sp,
+                      ),
+                      itemCount: controller.expenses.length,
+                      itemBuilder: (context, index) {
+                        final expense = controller.expenses[index];
+                        return _buildExpenseCard(context, expense, index);
+                      },
+                    );
+                  }),
+                ),
               ],
             ),
-          ),
-          child: Column(
-            children: [
-              // Stats Section with Glass Morphism
-              Padding(
-                padding: EdgeInsets.all(16.sp),
-                child: Obx(() => _buildStatsSection()),
-              ),
-
-              // Header with Filter Option
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 16.sp,
-                  vertical: 8.sp,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Recent Expenses',
-                      style: AppText.headingMedium.copyWith(
-                        color: AppColors.textColorPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          '${controller.expenses.length} items',
-                          style: AppText.bodySmall.copyWith(
-                            color: AppColors.textColorSecondary,
-                          ),
-                        ),
-                        SizedBox(width: 8.w),
-                        Container(
-                          padding: EdgeInsets.all(6.sp),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8.r),
-                          ),
-                          child: Icon(
-                            Icons.filter_list_rounded,
-                            size: 18.sp,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Expenses List
-              Expanded(
-                child: Obx(() {
-                  if (controller.isLoading.value) {
-                    return _buildLoadingState();
-                  }
-
-                  if (controller.errorMessage.value.isNotEmpty) {
-                    return _buildErrorWidget();
-                  }
-
-                  if (controller.expenses.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  return ListView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.sp,
-                      vertical: 8.sp,
-                    ),
-                    itemCount: controller.expenses.length,
-                    itemBuilder: (context, index) {
-                      final expense = controller.expenses[index];
-                      return _buildExpenseCard(context, expense, index);
-                    },
-                  );
-                }),
-              ),
-            ],
           ),
         ),
       ),

@@ -2477,7 +2477,10 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
 
     // Determine button label
     final currentStageId = _getStatusId(latest['status']);
-    final isCompleted = currentStageId == 5;
+    final isCompleted =
+        (currentStageId == 5 ||
+            status.toLowerCase() == 'closed' ||
+            status.toLowerCase() == 'withdrawal');
     final isFinalStep = currentStageId == 4;
     final buttonText =
         isCompleted
@@ -2750,23 +2753,22 @@ class _TechnicianTicketCardState extends State<TechnicianTicketCard> {
               spacing: 10,
               children: [
                 // Make Call Button
-                if (!(status.toLowerCase() == 'closed' ||
-                    status.toLowerCase() == 'resolved'))
+                if ((status.toLowerCase() == 'assigned'))
                   ElevatedButton(
                     onPressed: () async {
                       // Start background location tracking when calling customer
-                      try {
-                        final ticketDate = DateFormat(
-                          'yyyy-MM-dd',
-                        ).format(DateTime.now());
-                        final bgService = LocationTrackingBackgroundService();
-                        await bgService.startTracking(
-                          ticketDate: ticketDate,
-                          intervalSeconds: 60,
-                        );
-                      } catch (e) {
-                        print('⚠️ Failed to start tracking: $e');
-                      }
+                      // try {
+                      //   final ticketDate = DateFormat(
+                      //     'yyyy-MM-dd',
+                      //   ).format(DateTime.now());
+                      //   final bgService = LocationTrackingBackgroundService();
+                      //   await bgService.startTracking(
+                      //     ticketDate: ticketDate,
+                      //     intervalSeconds: 60,
+                      //   );
+                      // } catch (e) {
+                      //   print('⚠️ Failed to start tracking: $e');
+                      // }
 
                       // 📞 Show beautiful call request popup
                       if (context.mounted) {

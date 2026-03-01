@@ -377,7 +377,6 @@ class ApiServices {
       'image_base64': imageBase64 ?? "",
       'status': status,
       'customer_id': customerId,
-      'technician': 'Rahul Patil (Dummy)',
     };
 
     try {

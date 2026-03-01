@@ -64,7 +64,7 @@ class ComplaintController extends GetxController {
 
   // 👇 NEW: Count of open complaints
   int get openComplaintCount {
-    return complaints.where((c) => c.isOpen).length;
+    return complaints.where((c) => c.isRaisedComplaints).length;
   }
 
   // 👇 NEW: Can user submit? Only if < 5 open complaints
@@ -113,9 +113,9 @@ class ComplaintController extends GetxController {
           final existing = complaints.firstWhereOrNull(
             (c) => c.id == newComplaint.id,
           );
-          if (existing != null && existing.status != newComplaint.status) {
-            _notifyStatusChange(newComplaint);
-          }
+          // if (existing != null && existing.status != newComplaint.status) {
+          //   _notifyStatusChange(newComplaint);
+          // }
         }
         complaints.assignAll(result);
       }
@@ -196,11 +196,11 @@ class ComplaintController extends GetxController {
 
       if (success) {
         await fetchComplaints();
-        NotificationHelper.showNotification(
-          title: "Complaint Submitted",
-          body:
-              "Your request has been successfully submitted. We'll review it shortly.",
-        );
+        // NotificationHelper.showNotification(
+        //   title: "Complaint Submitted",
+        //   body:
+        //       "Your request has been successfully submitted. We'll review it shortly.",
+        // );
         uploadedImage.value = null;
         BaseApiService().showSnackbar(
           "Success",
@@ -227,11 +227,11 @@ class ComplaintController extends GetxController {
     complaints.remove(complaint);
     complaints.insert(0, updated);
 
-    NotificationHelper.showNotification(
-      title: "Complaint Resolved",
-      body:
-          "Your complaint #${complaint.ticketNo} has been closed. Thank you for your feedback!",
-    );
+    // NotificationHelper.showNotification(
+    //   title: "Complaint Resolved",
+    //   body:
+    //       "Your complaint #${complaint.ticketNo} has been closed. Thank you for your feedback!",
+    // );
 
     BaseApiService().showSnackbar(
       "Success",
@@ -260,21 +260,21 @@ class ComplaintController extends GetxController {
     );
   }
 
-  void _notifyStatusChange(ComplaintViewModel complaint) {
-    String? title, body;
+  // void _notifyStatusChange(ComplaintViewModel complaint) {
+  //   String? title, body;
 
-    if (complaint.isOpen) {
-      title = "Complaint Accepted";
-      body = "Your complaint has been accepted and assigned to a technician.";
-    } else if (complaint.isResolved) {
-      title = "Complaint Resolved";
-      body = "Great news! Your complaint has been successfully resolved.";
-    }
+  //   if (complaint.isOpen) {
+  //     title = "Complaint Accepted";
+  //     body = "Your complaint has been accepted and assigned to a technician.";
+  //   } else if (complaint.isResolved) {
+  //     title = "Complaint Resolved";
+  //     body = "Great news! Your complaint has been successfully resolved.";
+  //   }
 
-    if (title != null && body != null) {
-      NotificationHelper.showNotification(title: title, body: body);
-    }
-  }
+  //   if (title != null && body != null) {
+  //     NotificationHelper.showNotification(title: title, body: body);
+  //   }
+  // }
 
   Widget _buildRatingDisplay(int starRating) {
     // Even though checked before, defensive check
