@@ -222,7 +222,10 @@ class ScaffoldScreen extends StatelessWidget {
             ),
           ],
         ),
-        body: screens[currentIndex],
+        body: Padding(
+          padding: const EdgeInsets.only(bottom: 70),
+          child: screens[currentIndex],
+        ),
         // ✅ Beautiful Bottom Navigation Bar
         bottomNavigationBar: Container(
           decoration: BoxDecoration(

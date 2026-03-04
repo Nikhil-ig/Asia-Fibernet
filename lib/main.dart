@@ -1,4 +1,5 @@
 // main.dart
+import 'dart:io';
 import 'dart:math';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -27,7 +28,29 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Handling a background message ${message.messageId}');
 }
 
+// --------------------------------------------------------------------------------
+// 🔐 Temporary TLS override (development only)
+// If you see CERTIFICATE_VERIFY_FAILED errors when hitting the API
+// while running on an emulator/device, uncomment the next two lines.
+// **DO NOT** ship with this enabled in production.
+//
+// See https://developer.android.com/training/articles/security-ssl#HandlingCleartextTraffic
+// and the discussion in BaseApiService for more details.
+
+class _DebugHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback =
+        (X509Certificate cert, String host, int port) => true;
+    return client;
+  }
+}
+
 void main() async {
+  // set this globally to bypass certificate checks (dev only)
+  HttpOverrides.global = _DebugHttpOverrides();
+
   LicenseRegistry.addLicense(() async* {
     final String license = await rootBundle.loadString('google_fonts/OFL.txt');
     yield LicenseEntryWithLineBreaks(<String>['google_fonts'], license);

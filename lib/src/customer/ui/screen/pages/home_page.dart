@@ -409,14 +409,9 @@ class _HomeScreenContentState extends State<HomeScreenContent> {
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: _buildPlanRequestStatus(),
               ),
+
               // DisconnectionStatusWidget(),
             ],
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: _buildCurrentPlan(),
           ),
         ),
       ],

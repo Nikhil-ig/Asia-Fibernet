@@ -134,16 +134,16 @@ class AppDrawer extends StatelessWidget {
                             // Navigate to service requests
                           },
                         ),
-                        _DrawerItem(
-                          icon: Iconsax.user,
-                          label: 'My Profile',
-                          index: -1,
-                          onTap: () {
-                            Navigator.pop(context);
-                            ;
-                            Get.toNamed('/profile');
-                          },
-                        ),
+                        // _DrawerItem(
+                        //   icon: Iconsax.user,
+                        //   label: 'My Profile',
+                        //   index: -1,
+                        //   onTap: () {
+                        //     Navigator.pop(context);
+                        //     ;
+                        //     Get.toNamed('/profile');
+                        //   },
+                        // ),
                         _DrawerItem(
                           icon: Iconsax.flash_1,
                           label: 'Request Disconnection',
@@ -172,11 +172,11 @@ class AppDrawer extends StatelessWidget {
                             settingsCtrl.showRelocationSheet();
                           },
                         ),
-                        _DrawerItem(
-                          icon: Iconsax.setting_2,
-                          label: 'Settings',
-                          index: 4,
-                        ),
+                        // _DrawerItem(
+                        //   icon: Iconsax.setting_2,
+                        //   label: 'Settings',
+                        //   index: 4,
+                        // ),
                         _DrawerItem(
                           icon: Iconsax.share,
                           label: 'Refer & Earn',
@@ -184,7 +184,6 @@ class AppDrawer extends StatelessWidget {
                           // isPro: true,
                           onTap: () {
                             Navigator.pop(context);
-                            ;
                             scaffoldCtrl.navigateToReferral();
                           },
                         ),
@@ -564,7 +563,6 @@ class _DrawerItem extends StatelessWidget {
                 scaffoldCtrl.updateIndex(index);
               }
               Navigator.pop(context);
-              ;
             },
         borderRadius: BorderRadius.circular(12.r),
         child: Container(
